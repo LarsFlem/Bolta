@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>Boltutforsker</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+:root{
+  --bg:#0f1419; --panel:#1a1f2e; --panel2:#222a3d; --hi:#2a3349;
+  --accent:#ff8c42; --accent2:#4ec9b0; --text:#e6e6e6; --muted:#8a93a6;
+  --warn:#e8a87c; --ok:#7ec97e; --bad:#e87c7c;
+  --r:14px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  font-size:16px;line-height:1.4;
+  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+}
+body{max-width:640px;margin:0 auto;padding:0 14px 80px}
+
+/* header */
+header{position:sticky;top:0;background:var(--bg);z-index:10;
+  padding:14px 0 10px;border-bottom:1px solid var(--panel);margin-bottom:16px}
+.title-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.title-row h1{font-size:20px;margin:0;font-weight:700;flex:1;letter-spacing:-0.01em}
+.toggle{background:var(--panel);color:var(--muted);border:1px solid var(--panel2);
+  border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;
+  cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
+.toggle.on{background:var(--accent);color:#1a0e05;border-color:var(--accent)}
+.toggle:active{transform:scale(0.97)}
+.mode-toggle{display:flex;background:var(--panel);border-radius:999px;padding:3px;gap:2px}
+.mode-toggle button{background:transparent;border:none;color:var(--muted);
+  padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;
+  min-height:32px}
+.mode-toggle button.on{background:var(--accent);color:#1a0e05}
+
+/* inputs */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;letter-spacing:0.08em;color:var(--muted);
+  text-transform:uppercase;font-weight:600;margin-bottom:6px;padding:0 4px}
+.field select,.field input{
+  width:100%;background:var(--panel);color:var(--text);
+  border:1px solid var(--panel2);border-radius:var(--r);
+  padding:14px 16px;font-size:16px;font-weight:500;
+  appearance:none;-webkit-appearance:none;
+  min-height:50px;
+}
+.field select{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%238a93a6' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat:no-repeat;background-position:right 18px center;padding-right:42px;
+}
+.field select:focus,.field input:focus{outline:none;border-color:var(--accent)}
+
+/* size pills (alternative to dropdown for quick pick) */
+.size-pills{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
+.size-pills button{
+  background:var(--panel);color:var(--text);border:1px solid var(--panel2);
+  border-radius:10px;padding:10px 4px;font-size:14px;font-weight:600;cursor:pointer;
+  min-height:44px;
+}
+.size-pills button.on{background:var(--accent);color:#1a0e05;border-color:var(--accent)}
+.size-more{
+  background:var(--panel);color:var(--muted);border:1px dashed var(--panel2);
+  border-radius:10px;padding:8px;width:100%;font-size:13px;cursor:pointer;
+  margin-bottom:12px;
+}
+
+/* big torque tile */
+.hero{
+  background:linear-gradient(150deg,var(--panel2) 0%,var(--panel) 70%);
+  border:1px solid var(--hi);border-radius:20px;
+  padding:22px 20px;margin:20px 0;position:relative;overflow:hidden;
+}
+.hero::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.hero-label{font-size:11px;letter-spacing:0.12em;color:var(--accent);
+  text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.hero-value{font-size:64px;font-weight:800;line-height:1;letter-spacing:-0.03em;
+  font-variant-numeric:tabular-nums;color:var(--text);margin:6px 0}
+.hero-unit{font-size:24px;color:var(--muted);font-weight:600;margin-left:6px}
+.hero-sub{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;
+  display:flex;flex-wrap:wrap;gap:14px;margin-top:10px}
+.hero-sub b{color:var(--text);font-weight:600}
+.copy-btn{
+  position:absolute;top:18px;right:18px;
+  background:var(--panel);color:var(--text);border:1px solid var(--panel2);
+  border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;
+  min-height:36px;display:inline-flex;align-items:center;gap:6px;
+}
+.copy-btn.copied{background:var(--ok);color:#0a1f0a;border-color:var(--ok)}
+
+/* stat grid */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.stat{background:var(--panel);border:1px solid var(--panel2);
+  border-radius:var(--r);padding:14px}
+.stat-label{font-size:10px;letter-spacing:0.1em;color:var(--muted);
+  text-transform:uppercase;font-weight:600;margin-bottom:4px}
+.stat-value{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;
+  letter-spacing:-0.01em}
+.stat-value small{font-size:13px;color:var(--muted);font-weight:500;margin-left:3px}
+.stat.ok .stat-value{color:var(--ok)}
+.stat.bad .stat-value{color:var(--bad)}
+
+/* sections (advanced) */
+section.collapsible{
+  background:var(--panel);border:1px solid var(--panel2);
+  border-radius:var(--r);margin-bottom:12px;overflow:hidden
+}
+section.collapsible summary{
+  list-style:none;padding:16px 18px;cursor:pointer;
+  font-size:11px;letter-spacing:0.1em;color:var(--accent);
+  text-transform:uppercase;font-weight:700;
+  display:flex;align-items:center;justify-content:space-between;
+}
+section.collapsible summary::-webkit-details-marker{display:none}
+section.collapsible summary::after{content:"+";font-size:20px;color:var(--muted);font-weight:400}
+section.collapsible[open] summary::after{content:"−"}
+section.collapsible .body{padding:0 18px 18px}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:14px;
+  font-variant-numeric:tabular-nums}
+table th{text-align:left;font-size:11px;letter-spacing:0.06em;
+  color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:1px solid var(--panel2);
+  text-transform:uppercase}
+table td{padding:9px 6px;border-bottom:1px solid var(--hi)}
+table td.num{text-align:right}
+table tr:last-child td{border-bottom:none}
+table tr.current{background:rgba(255,140,66,0.07)}
+table tr.current td:first-child{color:var(--accent);font-weight:700}
+
+/* note */
+.note{font-size:12px;color:var(--muted);line-height:1.5;
+  padding:12px 14px;border-left:3px solid var(--accent);
+  background:var(--panel);border-radius:0 var(--r) var(--r) 0;margin:14px 0}
+
+.advanced-only{display:none}
+body.advanced .advanced-only{display:block}
+body.advanced .field.advanced-only{display:block}
+body.advanced section.collapsible.advanced-only{display:block}
+
+@media (max-width:380px){
+  .hero-value{font-size:52px}
+  .size-pills{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body class="simple">
+
+<header>
+  <div class="title-row">
+    <h1 id="title">Boltutforsker</h1>
+    <div class="mode-toggle" role="tablist">
+      <button id="mode-simple" class="on" data-mode="simple">Enkel</button>
+      <button id="mode-advanced" data-mode="advanced">Avansert</button>
+    </div>
+    <button class="toggle" id="lang-toggle">EN</button>
+  </div>
+</header>
+
+<main>
+
+<div class="field">
+  <label id="lbl-size">Bolt</label>
+  <div class="size-pills" id="size-pills"></div>
+  <button type="button" class="size-more" id="size-more">+ flere størrelser ▾</button>
+  <select id="size-select" style="display:none"></select>
+</div>
+
+<div class="field">
+  <label id="lbl-class">Fasthetsklasse</label>
+  <select id="class"></select>
+</div>
+
+<div class="field">
+  <label id="lbl-lube">Smøremiddel / gjengesikring</label>
+  <select id="lube"></select>
+</div>
+
+<div class="field advanced-only">
+  <label id="lbl-preload">Forspenningsmål</label>
+  <select id="preload"></select>
+</div>
+
+<div class="field advanced-only">
+  <label id="lbl-method">K-metode</label>
+  <select id="method"></select>
+</div>
+
+<div class="hero">
+  <div class="hero-label" id="hero-label">Tiltrekkingsmoment</div>
+  <div class="hero-value"><span id="torque-val">--</span><span class="hero-unit">Nm</span></div>
+  <div class="hero-sub">
+    <span><b id="clamp-val">--</b> kN <span id="clamp-label">klemkraft</span></span>
+    <span>K=<b id="k-val">--</b></span>
+  </div>
+  <button class="copy-btn" id="copy-btn" type="button">⧉ <span id="copy-label">Kopier</span></button>
+</div>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-label" id="lbl-as">Spenningsareal</div>
+    <div class="stat-value"><span id="as-val">--</span> <small>mm²</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-label" id="lbl-d">Diameter</div>
+    <div class="stat-value"><span id="d-val">--</span> <small>mm</small></div>
+  </div>
+</div>
+
+<section class="collapsible advanced-only">
+  <summary id="sec-cap">Kapasitet (denne klassen)</summary>
+  <div class="body"><table id="cap-table"></table></div>
+</section>
+
+<section class="collapsible advanced-only">
+  <summary id="sec-bycls">Moment per klasse (gjeldende smøring)</summary>
+  <div class="body"><table id="bycls-table"></table></div>
+</section>
+
+<section class="collapsible advanced-only">
+  <summary id="sec-geom">Geometri</summary>
+  <div class="body"><table id="geom-table"></table></div>
+</section>
+
+<section class="collapsible">
+  <summary id="sec-info">Info om bolt og overflate</summary>
+  <div class="body">
+    <div id="material-line" class="note"></div>
+    <div id="lube-line" class="note"></div>
+  </div>
+</section>
+
+<div class="note advanced-only" id="footnote">
+  NASA RP-1228 (Barrett, 1990) · MIL-HDBK-5 · ISO 898-1 · ISO 261
+</div>
+
+</main>
+
+<script>
+/* ============================================================ data */
+const SIZES = {
+  "M3":  {d:3,   pitch:0.5,  As:5.03,  wrench:5.5, head_h:2.0,  tap:2.5,   hole:3.4},
+  "M4":  {d:4,   pitch:0.7,  As:8.78,  wrench:7,   head_h:2.8,  tap:3.3,   hole:4.5},
+  "M5":  {d:5,   pitch:0.8,  As:14.2,  wrench:8,   head_h:3.5,  tap:4.2,   hole:5.5},
+  "M6":  {d:6,   pitch:1.0,  As:20.1,  wrench:10,  head_h:4.0,  tap:5.0,   hole:6.6},
+  "M8":  {d:8,   pitch:1.25, As:36.6,  wrench:13,  head_h:5.3,  tap:6.8,   hole:9.0},
+  "M10": {d:10,  pitch:1.5,  As:58.0,  wrench:16,  head_h:6.4,  tap:8.5,   hole:11.0},
+  "M12": {d:12,  pitch:1.75, As:84.3,  wrench:18,  head_h:7.5,  tap:10.2,  hole:13.5},
+  "M16": {d:16,  pitch:2.0,  As:157,   wrench:24,  head_h:10.0, tap:14.0,  hole:17.5},
+  "M20": {d:20,  pitch:2.5,  As:245,   wrench:30,  head_h:12.5, tap:17.5,  hole:22.0},
+  "M24": {d:24,  pitch:3.0,  As:353,   wrench:36,  head_h:15.0, tap:21.0,  hole:26.0},
+  "M30": {d:30,  pitch:3.5,  As:561,   wrench:46,  head_h:18.7, tap:26.5,  hole:33.0},
+  "M36": {d:36,  pitch:4.0,  As:817,   wrench:55,  head_h:22.5, tap:32.0,  hole:39.0},
+  "M42": {d:42,  pitch:4.5,  As:1121,  wrench:65,  head_h:26.0, tap:37.5,  hole:45.0},
+  "M48": {d:48,  pitch:5.0,  As:1473,  wrench:75,  head_h:30.0, tap:43.0,  hole:52.0},
+  "M56": {d:56,  pitch:5.5,  As:2030,  wrench:85,  head_h:35.0, tap:50.5,  hole:62.0},
+  "M64": {d:64,  pitch:6.0,  As:2676,  wrench:95,  head_h:40.0, tap:58.0,  hole:70.0},
+  "M80": {d:80,  pitch:6.0,  As:4344,  wrench:115, head_h:50.0, tap:74.0,  hole:88.0},
+  "M100":{d:100, pitch:6.0,  As:6995,  wrench:145, head_h:62.0, tap:94.0,  hole:109.0},
+  "M125":{d:125, pitch:6.0,  As:11140, wrench:180, head_h:78.0, tap:119.0, hole:135.0},
+  "M160":{d:160, pitch:6.0,  As:18510, wrench:230, head_h:100.0,tap:154.0, hole:172.0},
+  "M200":{d:200, pitch:6.0,  As:29250, wrench:290, head_h:125.0,tap:194.0, hole:215.0},
+};
+
+const CLASSES = {
+  "4.6":  {Rm:400, Rp02:240, Sp:225, material:{no:"Lav-/medium karbonstål",en:"Low/medium carbon steel"}},
+  "4.8":  {Rm:420, Rp02:340, Sp:310, material:{no:"Lav-/medium karbon, kaldformet",en:"Low/medium carbon, cold worked"}},
+  "5.6":  {Rm:500, Rp02:300, Sp:280, material:{no:"Lav-/medium karbonstål",en:"Low/medium carbon steel"}},
+  "5.8":  {Rm:520, Rp02:420, Sp:380, material:{no:"Lav-/medium karbon, kaldformet",en:"Low/medium carbon, cold worked"}},
+  "6.8":  {Rm:600, Rp02:480, Sp:440, material:{no:"Lav-/medium karbon, varmebehandlet",en:"Low/medium carbon, heat treated"}},
+  "8.8":  {Rm:800, Rp02:640, Sp:580, material:{no:"Medium karbon herdet+anløpt (35CrMo / C45)",en:"Medium carbon Q&T (35CrMo / C45)"}},
+  "10.9": {Rm:1040,Rp02:940, Sp:830, material:{no:"Legert stål herdet+anløpt (42CrMo4)",en:"Alloy steel Q&T (42CrMo4)"}},
+  "12.9": {Rm:1220,Rp02:1100,Sp:970, material:{no:"Legert stål herdet+anløpt (34CrNiMo6)",en:"Alloy steel Q&T (34CrNiMo6)"}},
+  "A2-70":{Rm:700, Rp02:450, Sp:410, material:{no:"Rustfritt A2 (304/X5CrNi18-10)",en:"Stainless A2 (304/X5CrNi18-10)"}},
+  "A4-80":{Rm:800, Rp02:600, Sp:540, material:{no:"Rustfritt A4 (316/X5CrNiMo17-12-2)",en:"Stainless A4 (316/X5CrNiMo17-12-2)"}},
+};
+
+const LUBRICANTS = {
+  "dry":          {K:0.20,mu:0.14,name:{no:"Tørr / som mottatt",en:"Dry / as-received"},
+                   note:{no:"Område 0,15-0,25 (ISO 16047). Sortbrunert / valseskall opp til 0,30.",
+                         en:"Range 0.15-0.25 (ISO 16047). Black-oxide / mill-scale up to 0.30."}},
+  "light_oil":    {K:0.18,mu:0.11,name:{no:"Lett olje på gjengene",en:"Light oil on threads"},
+                   note:{no:"Mineralolje, gjenger + anleggsflate. Referansegrunnlag for de fleste kart.",
+                         en:"Mineral oil, threads + bearing face. Baseline for most reference charts."}},
+  "cadmium":      {K:0.16,mu:0.10,name:{no:"Kadmiumbelagt",en:"Cadmium plated"},
+                   note:{no:"Lav friksjon (eldre luftfart; REACH-begrenset i EU).",
+                         en:"Low friction (legacy aerospace; REACH-restricted in EU)."}},
+  "zinc":         {K:0.20,mu:0.13,name:{no:"Sinkbelagt (elektrolytisk)",en:"Zinc plated"},
+                   note:{no:"Elektrobelegg + passivering. Variabel 0,18-0,22.",
+                         en:"Electroplated + passivation. Range 0.18-0.22."}},
+  "hdg":          {K:0.25,mu:0.20,name:{no:"Varmgalvanisert",en:"Hot-dip galvanized"},
+                   note:{no:"Grov sink; rens gjengene før montering. Område 0,20-0,35.",
+                         en:"Rough zinc; chase threads before assembly. Range 0.20-0.35."}},
+  "molykote":     {K:0.14,mu:0.09,name:{no:"Molykote G-n pasta (MoS2)",en:"Molykote G-n paste (MoS2)"},
+                   note:{no:"MoS2-pasta, full dekning. DuPont måledata ~K=0,13-0,16.",
+                         en:"MoS2 paste full coverage. DuPont test data ~K=0.13-0.16."}},
+  "cu_antiseize": {K:0.15,mu:0.10,name:{no:"Kobber anti-seize",en:"Copper anti-seize"},
+                   note:{no:"Høy temperatur til 1100°C. Ikke på austenittisk rustfritt (galvanisk).",
+                         en:"High temp to 1100°C. Not on austenitic stainless (galvanic)."}},
+  "ni_antiseize": {K:0.13,mu:0.08,name:{no:"Nikkel anti-seize",en:"Nickel anti-seize"},
+                   note:{no:"Rustfritt-mot-rustfritt, motvirker fastsetting, høy temperatur.",
+                         en:"Stainless-on-stainless, galling prevention, high temp."}},
+  "ptfe":         {K:0.13,mu:0.09,name:{no:"PTFE / voksbelegg",en:"PTFE / wax coating"},
+                   note:{no:"Påført film. Svært konsistent hvis filmen ikke skades.",
+                         en:"Pre-applied film. Very consistent if film undamaged."}},
+  "loctite_222":  {K:0.18,mu:0.13,name:{no:"Loctite 222 (lilla)",en:"Loctite 222 (purple)"},
+                   note:{no:"Lav styrke. ≤M6, hyppig demontering. Friksjon ≈ lett olje.",
+                         en:"Low strength. <=M6, frequent removal. Friction ~ light oil."}},
+  "loctite_243":  {K:0.18,mu:0.12,name:{no:"Loctite 243 (blå)",en:"Loctite 243 (blue)"},
+                   note:{no:"Middels styrke. Henkel: friksjon ≈ lett olje.",
+                         en:"Medium strength. Henkel: friction equivalent to light oil."}},
+  "loctite_263":  {K:0.17,mu:0.11,name:{no:"Loctite 263 (rød)",en:"Loctite 263 (red)"},
+                   note:{no:"Høy styrke. Pinneskruer & ≥M20.",
+                         en:"High strength. Studs & >=M20."}},
+  "loctite_270":  {K:0.16,mu:0.10,name:{no:"Loctite 270 (grønn)",en:"Loctite 270 (green)"},
+                   note:{no:"Permanent. Krever >250°C for demontering.",
+                         en:"Permanent. Requires >250°C to dismantle."}},
+  "loctite_290":  {K:0.20,mu:0.14,name:{no:"Loctite 290 (gjennomtrengende)",en:"Loctite 290 (wicking)"},
+                   note:{no:"Påføres ETTER tiltrekking - bruk underlagsflatens μ, ikke denne.",
+                         en:"Applied AFTER tightening - use base surface μ, not this row."}},
+};
+
+const PRELOAD_PRESETS = {
+  "Sp_60": {basis:"Sp",  frac:0.60, label:{no:"60% av Sp",                 en:"60% of proof (Sp)"}},
+  "Sp_70": {basis:"Sp",  frac:0.70, label:{no:"70% av Sp",                 en:"70% of proof (Sp)"}},
+  "Sp_75": {basis:"Sp",  frac:0.75, label:{no:"75% av Sp — generell bruk", en:"75% of proof (Sp) — general"}},
+  "Sp_85": {basis:"Sp",  frac:0.85, label:{no:"85% av Sp — høyt",          en:"85% of proof (Sp) — high"}},
+  "Rp_65": {basis:"Rp02",frac:0.65, label:{no:"65% av flytegrense [STD-5020]", en:"65% of yield [STD-5020]"}},
+  "Rp_75": {basis:"Rp02",frac:0.75, label:{no:"75% av flytegrense [RP-1228]",  en:"75% of yield [RP-1228]"}},
+};
+
+const K_METHODS = {
+  "lookup":{label:{no:"Oppslag K (bransjekart)",en:"Lookup K (industry charts)"}},
+  "nasa":  {label:{no:"NASA RP-1228 (μ-formel)",en:"NASA RP-1228 (μ-formula)"}},
+};
+
+const TXT = {
+no:{
+  title:"Boltutforsker", lang:"EN",
+  mode_simple:"Enkel", mode_advanced:"Avansert",
+  lbl_size:"Bolt", lbl_class:"Fasthetsklasse", lbl_lube:"Smøremiddel / gjengesikring",
+  lbl_preload:"Forspenningsmål", lbl_method:"K-metode",
+  hero_label:"Tiltrekkingsmoment",
+  clamp_label:"klemkraft",
+  lbl_as:"Spenningsareal", lbl_d:"Diameter",
+  sec_cap:"Kapasitet (denne klassen)",
+  sec_bycls:"Moment per klasse (gjeldende smøring)",
+  sec_geom:"Geometri",
+  sec_info:"Info om bolt og overflate",
+  size_more:"+ flere størrelser ▾",
+  size_less:"− færre størrelser ▴",
+  copy:"Kopier", copied:"Kopiert ✓",
+  geom_rows:{
+    "Nominell diameter d":"d","Gjengestigning P":"pitch","Flankediameter dm":"dm",
+    "Spenningsareal As":"As","Nøkkelvidde":"wrench","Hodehøyde k":"head_h",
+    "Boredimensjon":"tap","Klaringshull (middels)":"hole"
+  },
+  cap_rows:{tens_ult:"Bruddstrekk Ft,tillatt",yield:"Flytelast",proof:"Prøvelast",
+            clamp:"Klemkraft (mål)",shear_ult:"Skjær tillatt (brudd)",shear_yld:"Skjær tillatt (flyt)",
+            t_clamp:"Tiltrekkingsmoment T=K·F·d"},
+  bycls_th:["Klasse","Klem (kN)","Moment (Nm)"],
+  footnote_simple:"Antar 75% av flytegrense (NASA RP-1228). Bruk Avansert for andre forspenninger.",
+  material:"Materiale", surface:"Overflate",
+  copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nTiltrekkingsmoment: ${t} Nm\nKlemkraft: ${cf} kN  ·  K=${k}`,
+},
+en:{
+  title:"Bolt Browser", lang:"NO",
+  mode_simple:"Simple", mode_advanced:"Advanced",
+  lbl_size:"Bolt", lbl_class:"Property class", lbl_lube:"Lubricant / threadlocker",
+  lbl_preload:"Preload target", lbl_method:"K method",
+  hero_label:"Install Torque",
+  clamp_label:"clamp force",
+  lbl_as:"Stress area", lbl_d:"Diameter",
+  sec_cap:"Capacity (this class)",
+  sec_bycls:"Torque by class (current lubricant)",
+  sec_geom:"Geometry",
+  sec_info:"Bolt & surface info",
+  size_more:"+ more sizes ▾",
+  size_less:"− fewer sizes ▴",
+  copy:"Copy", copied:"Copied ✓",
+  geom_rows:{
+    "Nominal diameter d":"d","Thread pitch P":"pitch","Pitch diameter dm":"dm",
+    "Stress area As":"As","Wrench size":"wrench","Head height k":"head_h",
+    "Tap drill":"tap","Clearance hole (medium)":"hole"
+  },
+  cap_rows:{tens_ult:"Ultimate tensile Ft,allow",yield:"Yield load",proof:"Proof load",
+            clamp:"Target clamp force",shear_ult:"Allowable shear (ult)",shear_yld:"Allowable shear (yield)",
+            t_clamp:"Install torque T=K·F·d"},
+  bycls_th:["Class","Clamp (kN)","Torque (Nm)"],
+  footnote_simple:"Assumes 75% of yield (NASA RP-1228). Switch to Advanced for other preload targets.",
+  material:"Material", surface:"Surface",
+  copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nInstall torque: ${t} Nm\nClamp force: ${cf} kN  ·  K=${k}`,
+},
+};
+
+const POPULAR_SIZES = ["M6","M8","M10","M12","M16","M20","M24","M30"];
+
+/* ============================================================ math */
+function nasaK(d,P,muT,muC){
+  const dm=d-0.6495*P;
+  const psi=Math.atan(P/(Math.PI*dm));
+  const secA=1/Math.cos(30*Math.PI/180);
+  const tanPsi=Math.tan(psi);
+  return (dm/(2*d))*((tanPsi+muT*secA)/(1-muT*tanPsi*secA))+0.625*muC;
+}
+
+function calc(size,cls,K,basis,frac){
+  const As=size.As, d=size.d;
+  const Fproof=As*cls.Sp, Fyield=As*cls.Rp02, FtUlt=As*cls.Rm;
+  const Fclamp=frac*As*cls[basis];
+  const FsUlt=0.60*As*cls.Rm, FsYld=0.577*As*cls.Rp02;
+  const Tclamp=K*Fclamp*d/1000;
+  return {
+    Fproof:Fproof/1000, Fyield:Fyield/1000, FtUlt:FtUlt/1000,
+    Fclamp:Fclamp/1000, FsUlt:FsUlt/1000, FsYld:FsYld/1000,
+    Tclamp,
+  };
+}
+
+function fmt(v,unit){
+  if(!isFinite(v)) return "∞";
+  const a=Math.abs(v);
+  if(a>=1000) return v.toFixed(0);
+  if(a>=100)  return v.toFixed(0);
+  if(a>=10)   return v.toFixed(1);
+  if(a>=1)    return v.toFixed(2);
+  return v.toFixed(3);
+}
+
+/* ============================================================ state */
+const state={
+  lang:"no",
+  mode:"simple",
+  size:"M8",
+  cls:"8.8",
+  lube:"molykote",
+  preload:"Rp_75",
+  method:"nasa",
+  pillsExpanded:false,
+};
+
+const $=id=>document.getElementById(id);
+const t=()=>TXT[state.lang];
+
+/* ============================================================ population */
+function populateSelect(el,entries,labelFn){
+  el.innerHTML="";
+  for(const [id,obj] of entries){
+    const opt=document.createElement("option");
+    opt.value=id;
+    opt.textContent=labelFn(id,obj);
+    el.appendChild(opt);
+  }
+}
+
+function buildSizePills(){
+  const c=$("size-pills");
+  c.innerHTML="";
+  const list=state.pillsExpanded?Object.keys(SIZES):POPULAR_SIZES;
+  for(const s of list){
+    const b=document.createElement("button");
+    b.type="button"; b.textContent=s;
+    if(s===state.size) b.classList.add("on");
+    b.addEventListener("click",()=>{ state.size=s; buildSizePills(); $("size-select").value=s; recalc(); });
+    c.appendChild(b);
+  }
+  $("size-more").textContent=state.pillsExpanded?t().size_less:t().size_more;
+}
+
+function buildAll(){
+  populateSelect($("size-select"), Object.entries(SIZES), id=>id);
+  $("size-select").value=state.size;
+  populateSelect($("class"), Object.entries(CLASSES), (id,c)=>`${id} — Rm ${c.Rm}, Rp 0,2 ${c.Rp02} MPa`);
+  $("class").value=state.cls;
+  populateSelect($("lube"), Object.entries(LUBRICANTS),
+                 (id,l)=>`${l.name[state.lang]}  ·  K=${l.K.toFixed(2)}  μ=${l.mu.toFixed(2)}`);
+  $("lube").value=state.lube;
+  populateSelect($("preload"), Object.entries(PRELOAD_PRESETS), (id,p)=>p.label[state.lang]);
+  $("preload").value=state.preload;
+  populateSelect($("method"), Object.entries(K_METHODS), (id,m)=>m.label[state.lang]);
+  $("method").value=state.method;
+  buildSizePills();
+}
+
+function applyLabels(){
+  const L=t();
+  document.documentElement.lang=state.lang;
+  $("title").textContent=L.title;
+  $("mode-simple").textContent=L.mode_simple;
+  $("mode-advanced").textContent=L.mode_advanced;
+  $("lang-toggle").textContent=L.lang;
+  $("lbl-size").textContent=L.lbl_size;
+  $("lbl-class").textContent=L.lbl_class;
+  $("lbl-lube").textContent=L.lbl_lube;
+  $("lbl-preload").textContent=L.lbl_preload;
+  $("lbl-method").textContent=L.lbl_method;
+  $("hero-label").textContent=L.hero_label;
+  $("clamp-label").textContent=L.clamp_label;
+  $("lbl-as").textContent=L.lbl_as;
+  $("lbl-d").textContent=L.lbl_d;
+  $("sec-cap").textContent=L.sec_cap;
+  $("sec-bycls").textContent=L.sec_bycls;
+  $("sec-geom").textContent=L.sec_geom;
+  $("sec-info").textContent=L.sec_info;
+  $("copy-label").textContent=L.copy;
+  $("footnote").textContent=L.footnote_simple;
+  $("size-more").textContent=state.pillsExpanded?L.size_less:L.size_more;
+}
+
+/* ============================================================ recalc */
+function recalc(){
+  const sz=SIZES[state.size];
+  const cls=CLASSES[state.cls];
+  const lube=LUBRICANTS[state.lube];
+
+  let basis, frac;
+  if(state.mode==="simple"){
+    basis="Rp02"; frac=0.75;
+  } else {
+    const p=PRELOAD_PRESETS[state.preload];
+    basis=p.basis; frac=p.frac;
+  }
+
+  let K;
+  if(state.mode==="simple" || state.method==="nasa"){
+    K=nasaK(sz.d, sz.pitch, lube.mu, lube.mu);
+  } else {
+    K=lube.K;
+  }
+
+  const r=calc(sz,cls,K,basis,frac);
+
+  $("torque-val").textContent=fmt(r.Tclamp);
+  $("clamp-val").textContent=fmt(r.Fclamp);
+  $("k-val").textContent=K.toFixed(3);
+  $("as-val").textContent=fmt(sz.As);
+  $("d-val").textContent=sz.d;
+
+  // material + surface notes
+  $("material-line").innerHTML=
+    `<b>${t().material}</b> · ${state.cls} — ${cls.material[state.lang]}<br>`+
+    `Rm ${cls.Rm} MPa · Rp 0,2 ${cls.Rp02} MPa · Sp ${cls.Sp} MPa`;
+  $("lube-line").innerHTML=
+    `<b>${t().surface}</b> · ${lube.name[state.lang]}<br>${lube.note[state.lang]}`;
+
+  // tables (only build if advanced)
+  if(state.mode==="advanced"){
+    buildCapTable(r);
+    buildByClassTable(sz,lube,basis,frac);
+    buildGeomTable(sz);
+  }
+}
+
+function buildCapTable(r){
+  const L=t(), rows=[
+    [L.cap_rows.tens_ult, fmt(r.FtUlt),  "kN"],
+    [L.cap_rows.yield,    fmt(r.Fyield), "kN"],
+    [L.cap_rows.proof,    fmt(r.Fproof), "kN"],
+    [L.cap_rows.clamp,    fmt(r.Fclamp), "kN"],
+    [L.cap_rows.shear_ult,fmt(r.FsUlt),  "kN"],
+    [L.cap_rows.shear_yld,fmt(r.FsYld),  "kN"],
+    [L.cap_rows.t_clamp,  fmt(r.Tclamp), "Nm"],
+  ];
+  $("cap-table").innerHTML=rows.map(([k,v,u])=>
+    `<tr><td>${k}</td><td class="num">${v} <small style="color:var(--muted)">${u}</small></td></tr>`
+  ).join("");
+}
+
+function buildByClassTable(sz,lube,basis,frac){
+  const L=t(), th=L.bycls_th;
+  let html=`<thead><tr><th>${th[0]}</th><th class="num">${th[1]}</th><th class="num">${th[2]}</th></tr></thead><tbody>`;
+  for(const [cid,c] of Object.entries(CLASSES)){
+    const K = state.method==="nasa" ? nasaK(sz.d,sz.pitch,lube.mu,lube.mu) : lube.K;
+    const Fcl = frac*sz.As*c[basis]/1000;
+    const T = K*Fcl*1000*sz.d/1000;
+    const cur = cid===state.cls ? "current" : "";
+    html += `<tr class="${cur}"><td>${cid}</td><td class="num">${fmt(Fcl)}</td><td class="num">${fmt(T)}</td></tr>`;
+  }
+  html+="</tbody>";
+  $("bycls-table").innerHTML=html;
+}
+
+function buildGeomTable(sz){
+  const L=t().geom_rows;
+  const dm=sz.d-0.6495*sz.pitch;
+  const units={d:"mm",pitch:"mm",dm:"mm",As:"mm²",wrench:"mm",head_h:"mm",tap:"mm",hole:"mm"};
+  const values={d:sz.d,pitch:sz.pitch,dm:dm.toFixed(3),As:sz.As,
+                wrench:sz.wrench,head_h:sz.head_h,tap:sz.tap,hole:sz.hole};
+  $("geom-table").innerHTML=Object.entries(L).map(([label,key])=>
+    `<tr><td>${label}</td><td class="num">${values[key]} <small style="color:var(--muted)">${units[key]}</small></td></tr>`
+  ).join("");
+}
+
+/* ============================================================ events */
+function setMode(m){
+  state.mode=m;
+  document.body.classList.toggle("simple", m==="simple");
+  document.body.classList.toggle("advanced", m==="advanced");
+  $("mode-simple").classList.toggle("on", m==="simple");
+  $("mode-advanced").classList.toggle("on", m==="advanced");
+  recalc();
+}
+
+function setLang(l){
+  state.lang=l;
+  applyLabels();
+  buildAll();      // re-populate selects with translated labels
+  recalc();
+}
+
+function bindEvents(){
+  $("mode-simple").addEventListener("click",()=>setMode("simple"));
+  $("mode-advanced").addEventListener("click",()=>setMode("advanced"));
+  $("lang-toggle").addEventListener("click",()=>setLang(state.lang==="no"?"en":"no"));
+
+  $("size-select").addEventListener("change",e=>{ state.size=e.target.value; buildSizePills(); recalc(); });
+  $("size-more").addEventListener("click",()=>{ state.pillsExpanded=!state.pillsExpanded; buildSizePills(); });
+  $("class").addEventListener("change",e=>{ state.cls=e.target.value; recalc(); });
+  $("lube").addEventListener("change",e=>{ state.lube=e.target.value; recalc(); });
+  $("preload").addEventListener("change",e=>{ state.preload=e.target.value; recalc(); });
+  $("method").addEventListener("change",e=>{ state.method=e.target.value; recalc(); });
+
+  $("copy-btn").addEventListener("click",async()=>{
+    const sz=SIZES[state.size], cls=CLASSES[state.cls], lube=LUBRICANTS[state.lube];
+    let basis,frac;
+    if(state.mode==="simple"){basis="Rp02";frac=0.75;}
+    else{const p=PRELOAD_PRESETS[state.preload];basis=p.basis;frac=p.frac;}
+    const K = (state.mode==="simple" || state.method==="nasa")
+              ? nasaK(sz.d,sz.pitch,lube.mu,lube.mu) : lube.K;
+    const r=calc(sz,cls,K,basis,frac);
+    const text=t().copy_template(state.size, state.cls, lube.name[state.lang],
+                                  fmt(r.Tclamp), K.toFixed(3), fmt(r.Fclamp));
+    try { await navigator.clipboard.writeText(text); }
+    catch(e){ /* fallback: select via temp textarea */
+      const ta=document.createElement("textarea"); ta.value=text;
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+    }
+    const btn=$("copy-btn"); btn.classList.add("copied");
+    $("copy-label").textContent=t().copied;
+    setTimeout(()=>{ btn.classList.remove("copied"); $("copy-label").textContent=t().copy; }, 1400);
+  });
+}
+
+/* ============================================================ init */
+applyLabels();
+buildAll();
+bindEvents();
+recalc();
+
+/* service worker */
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>

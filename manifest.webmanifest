@@ -1,0 +1,15 @@
+{
+  "name": "Boltutforsker",
+  "short_name": "Bolter",
+  "description": "Bolt torque calculator — NASA RP-1228 / ISO 898-1",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
