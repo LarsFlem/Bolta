@@ -327,9 +327,10 @@ const LUBRICANTS = {
   "hdg":          {K:0.25,mu:0.20,name:{no:"Varmgalvanisert",en:"Hot-dip galvanized"},
                    note:{no:"Grov sink; rens gjengene før montering. Område 0,20-0,35.",
                          en:"Rough zinc; chase threads before assembly. Range 0.20-0.35."}},
-  "molykote":     {K:0.14,mu:0.09,name:{no:"Molykote G-n pasta (MoS2)",en:"Molykote G-n paste (MoS2)"},
-                   note:{no:"MoS2-pasta, full dekning. DuPont måledata ~K=0,13-0,16.",
-                         en:"MoS2 paste full coverage. DuPont test data ~K=0.13-0.16."}},
+  "molykote":     {K:0.11,mu:0.10,mu_t:0.10,mu_h:0.05,
+                   name:{no:"Molykote G-Rapid Plus (HDG-bolt)",en:"Molykote G-Rapid Plus (HDG bolt)"},
+                   note:{no:"MoS2-pasta på HDG-gjenger + plan hodeflate. Industristandard: μ_gjenge=0,10, μ_hode=0,05.",
+                         en:"MoS2 paste on HDG threads + plain head face. Industry standard: μ_thread=0.10, μ_head=0.05."}},
   "cu_antiseize": {K:0.15,mu:0.10,name:{no:"Kobber anti-seize",en:"Copper anti-seize"},
                    note:{no:"Høy temperatur til 1100°C. Ikke på austenittisk rustfritt (galvanisk).",
                          en:"High temp to 1100°C. Not on austenitic stainless (galvanic)."}},
@@ -362,6 +363,7 @@ const PRELOAD_PRESETS = {
   "Sp_75": {basis:"Sp",  frac:0.75, label:{no:"75% av Sp — generell bruk", en:"75% of proof (Sp) — general"}},
   "Sp_85": {basis:"Sp",  frac:0.85, label:{no:"85% av Sp — høyt",          en:"85% of proof (Sp) — high"}},
   "Rp_65": {basis:"Rp02",frac:0.65, label:{no:"65% av flytegrense [STD-5020]", en:"65% of yield [STD-5020]"}},
+  "Rp_70": {basis:"Rp02",frac:0.70, label:{no:"70% av flytegrense — industri", en:"70% of yield — industry"}},
   "Rp_75": {basis:"Rp02",frac:0.75, label:{no:"75% av flytegrense [RP-1228]",  en:"75% of yield [RP-1228]"}},
 };
 
@@ -442,6 +444,17 @@ function nasaK(d,P,muT,muC){
   const secA=1/Math.cos(30*Math.PI/180);
   const tanPsi=Math.tan(psi);
   return (dm/(2*d))*((tanPsi+muT*secA)/(1-muT*tanPsi*secA))+0.625*muC;
+}
+
+function muPair(lube){
+  // returns [mu_thread, mu_head], honoring split values if present
+  const mt = (lube.mu_t!==undefined) ? lube.mu_t : lube.mu;
+  const mh = (lube.mu_h!==undefined) ? lube.mu_h : lube.mu;
+  return [mt, mh];
+}
+function lubeKDisplay(lube){
+  const [mt,mh]=muPair(lube);
+  return (mt!==mh) ? `μₜ=${mt.toFixed(2)} μₕ=${mh.toFixed(2)}` : `μ=${lube.mu.toFixed(2)}`;
 }
 
 function nasaCombinedMS(Ft,Fs,FtA,FsA){
@@ -533,7 +546,7 @@ function buildAll(){
   populateSelect($("class"), Object.entries(CLASSES), (id,c)=>`${id} — Rm ${c.Rm}, Rp 0,2 ${c.Rp02} MPa`);
   $("class").value=state.cls;
   populateSelect($("lube"), Object.entries(LUBRICANTS),
-                 (id,l)=>`${l.name[state.lang]}  ·  K=${l.K.toFixed(2)}  μ=${l.mu.toFixed(2)}`);
+                 (id,l)=>`${l.name[state.lang]}  ·  K=${l.K.toFixed(2)}  ${lubeKDisplay(l)}`);
   $("lube").value=state.lube;
   populateSelect($("preload"), Object.entries(PRELOAD_PRESETS), (id,p)=>p.label[state.lang]);
   $("preload").value=state.preload;
@@ -589,7 +602,8 @@ function recalc(){
 
   let K;
   if(state.mode==="simple" || state.method==="nasa"){
-    K=nasaK(sz.d, sz.pitch, lube.mu, lube.mu);
+    const [mt,mh]=muPair(lube);
+    K=nasaK(sz.d, sz.pitch, mt, mh);
   } else {
     K=lube.K;
   }
@@ -652,9 +666,10 @@ function buildCapTable(r){
 
 function buildByClassTable(sz,lube,basis,frac){
   const L=t(), th=L.bycls_th;
+  const [mt,mh]=muPair(lube);
   let html=`<thead><tr><th>${th[0]}</th><th class="num">${th[1]}</th><th class="num">${th[2]}</th></tr></thead><tbody>`;
   for(const [cid,c] of Object.entries(CLASSES)){
-    const K = state.method==="nasa" ? nasaK(sz.d,sz.pitch,lube.mu,lube.mu) : lube.K;
+    const K = state.method==="nasa" ? nasaK(sz.d,sz.pitch,mt,mh) : lube.K;
     const Fcl = frac*sz.As*c[basis]/1000;
     const T = K*Fcl*1000*sz.d/1000;
     const cur = cid===state.cls ? "current" : "";
@@ -712,8 +727,9 @@ function bindEvents(){
     let basis,frac;
     if(state.mode==="simple"){basis="Rp02";frac=0.75;}
     else{const p=PRELOAD_PRESETS[state.preload];basis=p.basis;frac=p.frac;}
+    const [mt,mh]=muPair(lube);
     const K = (state.mode==="simple" || state.method==="nasa")
-              ? nasaK(sz.d,sz.pitch,lube.mu,lube.mu) : lube.K;
+              ? nasaK(sz.d,sz.pitch,mt,mh) : lube.K;
     const r=calc(sz,cls,K,basis,frac,state.trun,state.ft,state.fs);
     const text=t().copy_template(state.size, state.cls, lube.name[state.lang],
                                   fmt(r.Tinstall), K.toFixed(3), fmt(r.Fclamp));
