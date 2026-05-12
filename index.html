@@ -144,6 +144,11 @@ table tr.current td:first-child{color:var(--accent);font-weight:700}
 body.advanced .advanced-only{display:block}
 body.advanced .field.advanced-only{display:block}
 body.advanced section.collapsible.advanced-only{display:block}
+body.advanced .num-row.advanced-only{display:grid}
+
+/* small numeric grid for advanced inputs */
+.num-row{grid-template-columns:1fr 1fr 1fr;gap:8px}
+.num-row .field{margin-bottom:12px}
 
 @media (max-width:380px){
   .hero-value{font-size:52px}
@@ -193,12 +198,28 @@ body.advanced section.collapsible.advanced-only{display:block}
   <select id="method"></select>
 </div>
 
+<div class="num-row advanced-only">
+  <div class="field">
+    <label id="lbl-trun">Løpende (Nm)</label>
+    <input type="number" id="trun" inputmode="decimal" step="0.1" value="0">
+  </div>
+  <div class="field">
+    <label id="lbl-ft">Strekk (kN)</label>
+    <input type="number" id="ft" inputmode="decimal" step="0.1" value="0">
+  </div>
+  <div class="field">
+    <label id="lbl-fs">Skjær (kN)</label>
+    <input type="number" id="fs" inputmode="decimal" step="0.1" value="0">
+  </div>
+</div>
+
 <div class="hero">
   <div class="hero-label" id="hero-label">Tiltrekkingsmoment</div>
   <div class="hero-value"><span id="torque-val">--</span><span class="hero-unit">Nm</span></div>
   <div class="hero-sub">
     <span><b id="clamp-val">--</b> kN <span id="clamp-label">klemkraft</span></span>
     <span>K=<b id="k-val">--</b></span>
+    <span id="trun-line" style="display:none">+<b id="trun-show">0</b> Nm <span id="run-label">løpende</span></span>
   </div>
   <button class="copy-btn" id="copy-btn" type="button">⧉ <span id="copy-label">Kopier</span></button>
 </div>
@@ -211,6 +232,14 @@ body.advanced section.collapsible.advanced-only{display:block}
   <div class="stat">
     <div class="stat-label" id="lbl-d">Diameter</div>
     <div class="stat-value"><span id="d-val">--</span> <small>mm</small></div>
+  </div>
+  <div class="stat advanced-only" id="ms-tile">
+    <div class="stat-label" id="lbl-ms">SM (brudd)</div>
+    <div class="stat-value"><span id="ms-val">--</span></div>
+  </div>
+  <div class="stat advanced-only">
+    <div class="stat-label" id="lbl-util">Utnyttelse Rs³+Rt²</div>
+    <div class="stat-value"><span id="util-val">--</span></div>
   </div>
 </div>
 
@@ -347,9 +376,11 @@ no:{
   mode_simple:"Enkel", mode_advanced:"Avansert",
   lbl_size:"Bolt", lbl_class:"Fasthetsklasse", lbl_lube:"Smøremiddel / gjengesikring",
   lbl_preload:"Forspenningsmål", lbl_method:"K-metode",
+  lbl_trun:"Løpende (Nm)", lbl_ft:"Strekk (kN)", lbl_fs:"Skjær (kN)",
   hero_label:"Tiltrekkingsmoment",
-  clamp_label:"klemkraft",
+  clamp_label:"klemkraft", run_label:"løpende",
   lbl_as:"Spenningsareal", lbl_d:"Diameter",
+  lbl_ms:"SM (brudd)", lbl_util:"Utnyttelse Rs³+Rt²",
   sec_cap:"Kapasitet (denne klassen)",
   sec_bycls:"Moment per klasse (gjeldende smøring)",
   sec_geom:"Geometri",
@@ -364,7 +395,7 @@ no:{
   },
   cap_rows:{tens_ult:"Bruddstrekk Ft,tillatt",yield:"Flytelast",proof:"Prøvelast",
             clamp:"Klemkraft (mål)",shear_ult:"Skjær tillatt (brudd)",shear_yld:"Skjær tillatt (flyt)",
-            t_clamp:"Tiltrekkingsmoment T=K·F·d"},
+            t_clamp:"Klemmoment T=K·F·d",t_install:"Tiltrekkingsmoment (inkl. løpende)"},
   bycls_th:["Klasse","Klem (kN)","Moment (Nm)"],
   footnote_simple:"Antar 75% av flytegrense (NASA RP-1228). Bruk Avansert for andre forspenninger.",
   material:"Materiale", surface:"Overflate",
@@ -375,9 +406,11 @@ en:{
   mode_simple:"Simple", mode_advanced:"Advanced",
   lbl_size:"Bolt", lbl_class:"Property class", lbl_lube:"Lubricant / threadlocker",
   lbl_preload:"Preload target", lbl_method:"K method",
+  lbl_trun:"Running (Nm)", lbl_ft:"Tension (kN)", lbl_fs:"Shear (kN)",
   hero_label:"Install Torque",
-  clamp_label:"clamp force",
+  clamp_label:"clamp force", run_label:"running",
   lbl_as:"Stress area", lbl_d:"Diameter",
+  lbl_ms:"MS (ultimate)", lbl_util:"Utilization Rs³+Rt²",
   sec_cap:"Capacity (this class)",
   sec_bycls:"Torque by class (current lubricant)",
   sec_geom:"Geometry",
@@ -392,7 +425,7 @@ en:{
   },
   cap_rows:{tens_ult:"Ultimate tensile Ft,allow",yield:"Yield load",proof:"Proof load",
             clamp:"Target clamp force",shear_ult:"Allowable shear (ult)",shear_yld:"Allowable shear (yield)",
-            t_clamp:"Install torque T=K·F·d"},
+            t_clamp:"Clamp torque T=K·F·d",t_install:"Install torque (incl. running)"},
   bycls_th:["Class","Clamp (kN)","Torque (Nm)"],
   footnote_simple:"Assumes 75% of yield (NASA RP-1228). Switch to Advanced for other preload targets.",
   material:"Material", surface:"Surface",
@@ -411,16 +444,35 @@ function nasaK(d,P,muT,muC){
   return (dm/(2*d))*((tanPsi+muT*secA)/(1-muT*tanPsi*secA))+0.625*muC;
 }
 
-function calc(size,cls,K,basis,frac){
+function nasaCombinedMS(Ft,Fs,FtA,FsA){
+  if(FtA<=0||FsA<=0) return Infinity;
+  const Rt=Math.abs(Ft)/FtA, Rs=Math.abs(Fs)/FsA;
+  if(Rt===0&&Rs===0) return Infinity;
+  let lo=0,hi=1e6;
+  for(let i=0;i<80;i++){
+    const m=0.5*(lo+hi);
+    if((m*Rt)**2+(m*Rs)**3<1) lo=m; else hi=m;
+  }
+  return lo-1;
+}
+
+function calc(size,cls,K,basis,frac,tRun,FtkN,FskN){
   const As=size.As, d=size.d;
   const Fproof=As*cls.Sp, Fyield=As*cls.Rp02, FtUlt=As*cls.Rm;
   const Fclamp=frac*As*cls[basis];
   const FsUlt=0.60*As*cls.Rm, FsYld=0.577*As*cls.Rp02;
   const Tclamp=K*Fclamp*d/1000;
+  const Tinstall=Tclamp+tRun;
+  const FtN=FtkN*1000, FsN=FskN*1000;
+  const MSu=nasaCombinedMS(FtN,FsN,FtUlt,FsUlt);
+  const MSy=nasaCombinedMS(FtN,FsN,Fyield,FsYld);
+  const Rt=FtUlt>0?FtN/FtUlt:0;
+  const Rs=FsUlt>0?FsN/FsUlt:0;
   return {
     Fproof:Fproof/1000, Fyield:Fyield/1000, FtUlt:FtUlt/1000,
     Fclamp:Fclamp/1000, FsUlt:FsUlt/1000, FsYld:FsYld/1000,
-    Tclamp,
+    Tclamp, Tinstall, MSu, MSy, Rt, Rs,
+    util:Rt*Rt+Rs*Rs*Rs,
   };
 }
 
@@ -443,6 +495,7 @@ const state={
   lube:"molykote",
   preload:"Rp_75",
   method:"nasa",
+  trun:0, ft:0, fs:0,
   pillsExpanded:false,
 };
 
@@ -501,10 +554,16 @@ function applyLabels(){
   $("lbl-lube").textContent=L.lbl_lube;
   $("lbl-preload").textContent=L.lbl_preload;
   $("lbl-method").textContent=L.lbl_method;
+  $("lbl-trun").textContent=L.lbl_trun;
+  $("lbl-ft").textContent=L.lbl_ft;
+  $("lbl-fs").textContent=L.lbl_fs;
   $("hero-label").textContent=L.hero_label;
   $("clamp-label").textContent=L.clamp_label;
+  $("run-label").textContent=L.run_label;
   $("lbl-as").textContent=L.lbl_as;
   $("lbl-d").textContent=L.lbl_d;
+  $("lbl-ms").textContent=L.lbl_ms;
+  $("lbl-util").textContent=L.lbl_util;
   $("sec-cap").textContent=L.sec_cap;
   $("sec-bycls").textContent=L.sec_bycls;
   $("sec-geom").textContent=L.sec_geom;
@@ -535,13 +594,30 @@ function recalc(){
     K=lube.K;
   }
 
-  const r=calc(sz,cls,K,basis,frac);
+  const r=calc(sz,cls,K,basis,frac,state.trun,state.ft,state.fs);
 
-  $("torque-val").textContent=fmt(r.Tclamp);
+  $("torque-val").textContent=fmt(r.Tinstall);
   $("clamp-val").textContent=fmt(r.Fclamp);
   $("k-val").textContent=K.toFixed(3);
   $("as-val").textContent=fmt(sz.As);
   $("d-val").textContent=sz.d;
+
+  if(state.trun>0){
+    $("trun-line").style.display="inline";
+    $("trun-show").textContent=fmt(state.trun);
+  } else {
+    $("trun-line").style.display="none";
+  }
+
+  // advanced tiles
+  const ms=$("ms-val"), msTile=$("ms-tile");
+  ms.textContent=isFinite(r.MSu)?r.MSu.toFixed(2):"∞";
+  msTile.classList.remove("ok","bad");
+  if(state.ft>0 || state.fs>0){
+    if(r.MSu<0) msTile.classList.add("bad");
+    else if(r.MSu>=0) msTile.classList.add("ok");
+  }
+  $("util-val").textContent=r.util.toFixed(3);
 
   // material + surface notes
   $("material-line").innerHTML=
@@ -560,13 +636,14 @@ function recalc(){
 
 function buildCapTable(r){
   const L=t(), rows=[
-    [L.cap_rows.tens_ult, fmt(r.FtUlt),  "kN"],
-    [L.cap_rows.yield,    fmt(r.Fyield), "kN"],
-    [L.cap_rows.proof,    fmt(r.Fproof), "kN"],
-    [L.cap_rows.clamp,    fmt(r.Fclamp), "kN"],
-    [L.cap_rows.shear_ult,fmt(r.FsUlt),  "kN"],
-    [L.cap_rows.shear_yld,fmt(r.FsYld),  "kN"],
-    [L.cap_rows.t_clamp,  fmt(r.Tclamp), "Nm"],
+    [L.cap_rows.tens_ult, fmt(r.FtUlt),   "kN"],
+    [L.cap_rows.yield,    fmt(r.Fyield),  "kN"],
+    [L.cap_rows.proof,    fmt(r.Fproof),  "kN"],
+    [L.cap_rows.clamp,    fmt(r.Fclamp),  "kN"],
+    [L.cap_rows.shear_ult,fmt(r.FsUlt),   "kN"],
+    [L.cap_rows.shear_yld,fmt(r.FsYld),   "kN"],
+    [L.cap_rows.t_clamp,  fmt(r.Tclamp),  "Nm"],
+    [L.cap_rows.t_install,fmt(r.Tinstall),"Nm"],
   ];
   $("cap-table").innerHTML=rows.map(([k,v,u])=>
     `<tr><td>${k}</td><td class="num">${v} <small style="color:var(--muted)">${u}</small></td></tr>`
@@ -626,6 +703,9 @@ function bindEvents(){
   $("lube").addEventListener("change",e=>{ state.lube=e.target.value; recalc(); });
   $("preload").addEventListener("change",e=>{ state.preload=e.target.value; recalc(); });
   $("method").addEventListener("change",e=>{ state.method=e.target.value; recalc(); });
+  $("trun").addEventListener("input",e=>{ state.trun=parseFloat(e.target.value)||0; recalc(); });
+  $("ft").addEventListener("input",e=>{ state.ft=parseFloat(e.target.value)||0; recalc(); });
+  $("fs").addEventListener("input",e=>{ state.fs=parseFloat(e.target.value)||0; recalc(); });
 
   $("copy-btn").addEventListener("click",async()=>{
     const sz=SIZES[state.size], cls=CLASSES[state.cls], lube=LUBRICANTS[state.lube];
@@ -634,9 +714,9 @@ function bindEvents(){
     else{const p=PRELOAD_PRESETS[state.preload];basis=p.basis;frac=p.frac;}
     const K = (state.mode==="simple" || state.method==="nasa")
               ? nasaK(sz.d,sz.pitch,lube.mu,lube.mu) : lube.K;
-    const r=calc(sz,cls,K,basis,frac);
+    const r=calc(sz,cls,K,basis,frac,state.trun,state.ft,state.fs);
     const text=t().copy_template(state.size, state.cls, lube.name[state.lang],
-                                  fmt(r.Tclamp), K.toFixed(3), fmt(r.Fclamp));
+                                  fmt(r.Tinstall), K.toFixed(3), fmt(r.Fclamp));
     try { await navigator.clipboard.writeText(text); }
     catch(e){ /* fallback: select via temp textarea */
       const ta=document.createElement("textarea"); ta.value=text;
