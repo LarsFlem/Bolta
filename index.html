@@ -40,6 +40,20 @@ header{position:sticky;top:0;background:var(--bg);z-index:10;
   min-height:32px}
 .mode-toggle button.on{background:var(--accent);color:#1a0e05}
 
+/* unit toggle (Nm / ft·lb / in·lb) */
+.unit-toggle{display:inline-flex;background:rgba(0,0,0,0.25);border-radius:999px;
+  padding:3px;gap:2px;margin-top:12px}
+.unit-toggle button{background:transparent;border:none;color:var(--muted);
+  padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;
+  min-height:28px;font-variant-numeric:tabular-nums}
+.unit-toggle button.on{background:var(--accent);color:#1a0e05}
+
+/* condition / mismatch warning */
+.warn-box{font-size:12.5px;line-height:1.5;padding:11px 13px;margin:0 0 14px;
+  border-radius:var(--r);border-left:3px solid var(--warn);
+  background:rgba(232,168,124,0.10);color:var(--text)}
+.warn-box b{color:var(--warn)}
+
 /* inputs */
 .field{margin-bottom:12px}
 .field label{display:block;font-size:11px;letter-spacing:0.08em;color:var(--muted);
@@ -203,6 +217,11 @@ body.advanced .num-row.advanced-only{display:grid}
   <select id="thread"></select>
 </div>
 
+<div class="field advanced-only">
+  <label id="lbl-head">Hodetype</label>
+  <select id="head"></select>
+</div>
+
 <div class="num-row advanced-only">
   <div class="field">
     <label id="lbl-trun">Løpende (Nm)</label>
@@ -220,14 +239,22 @@ body.advanced .num-row.advanced-only{display:grid}
 
 <div class="hero">
   <div class="hero-label" id="hero-label">Tiltrekkingsmoment</div>
-  <div class="hero-value"><span id="torque-val">--</span><span class="hero-unit">Nm</span></div>
+  <div class="hero-value"><span id="torque-val">--</span><span class="hero-unit" id="hero-unit">Nm</span></div>
   <div class="hero-sub">
     <span><b id="clamp-val">--</b> kN <span id="clamp-label">klemkraft</span></span>
     <span>K=<b id="k-val">--</b></span>
-    <span id="trun-line" style="display:none">+<b id="trun-show">0</b> Nm <span id="run-label">løpende</span></span>
+    <span id="tol-line">±10% · <b id="tol-range">--</b></span>
+    <span id="trun-line" style="display:none">+<b id="trun-show">0</b> <span id="trun-unit">Nm</span> <span id="run-label">løpende</span></span>
+  </div>
+  <div class="unit-toggle" id="unit-toggle">
+    <button type="button" data-unit="Nm" class="on">Nm</button>
+    <button type="button" data-unit="ftlb">ft·lb</button>
+    <button type="button" data-unit="inlb">in·lb</button>
   </div>
   <button class="copy-btn" id="copy-btn" type="button">⧉ <span id="copy-label">Kopier</span></button>
 </div>
+
+<div class="warn-box" id="cond-warn"></div>
 
 <div class="stat-grid">
   <div class="stat">
@@ -337,7 +364,7 @@ const CLASSES = {
 };
 
 const LUBRICANTS = {
-  "dry":          {K:0.20,mu:0.14,name:{no:"Tørr / som mottatt",en:"Dry / as-received"},
+  "dry":          {K:0.20,mu:0.14,dry:true,tol:0.18,name:{no:"Tørr / som mottatt",en:"Dry / as-received"},
                    note:{no:"Område 0,15-0,25 (ISO 16047). Sortbrunert / valseskall opp til 0,30.",
                          en:"Range 0.15-0.25 (ISO 16047). Black-oxide / mill-scale up to 0.30."}},
   "light_oil":    {K:0.18,mu:0.11,name:{no:"Lett olje på gjengene",en:"Light oil on threads"},
@@ -346,23 +373,23 @@ const LUBRICANTS = {
   "cadmium":      {K:0.16,mu:0.10,name:{no:"Kadmiumbelagt",en:"Cadmium plated"},
                    note:{no:"Lav friksjon (eldre luftfart; REACH-begrenset i EU).",
                          en:"Low friction (legacy aerospace; REACH-restricted in EU)."}},
-  "zinc":         {K:0.20,mu:0.13,name:{no:"Sinkbelagt (elektrolytisk)",en:"Zinc plated"},
+  "zinc":         {K:0.20,mu:0.13,dry:true,tol:0.15,name:{no:"Sinkbelagt (elektrolytisk)",en:"Zinc plated"},
                    note:{no:"Elektrobelegg + passivering. Variabel 0,18-0,22.",
                          en:"Electroplated + passivation. Range 0.18-0.22."}},
-  "hdg":          {K:0.25,mu:0.20,name:{no:"Varmgalvanisert",en:"Hot-dip galvanized"},
+  "hdg":          {K:0.25,mu:0.20,dry:true,tol:0.20,name:{no:"Varmgalvanisert",en:"Hot-dip galvanized"},
                    note:{no:"Grov sink; rens gjengene før montering. Område 0,20-0,35.",
                          en:"Rough zinc; chase threads before assembly. Range 0.20-0.35."}},
-  "molykote":     {K:0.11,mu:0.10,mu_t:0.10,mu_h:0.05,
+  "molykote":     {K:0.11,mu:0.10,mu_t:0.10,mu_h:0.05,tol:0.08,
                    name:{no:"Molykote G-Rapid Plus (HDG-bolt)",en:"Molykote G-Rapid Plus (HDG bolt)"},
                    note:{no:"MoS2-pasta på HDG-gjenger + plan hodeflate. Industristandard: μ_gjenge=0,10, μ_hode=0,05.",
                          en:"MoS2 paste on HDG threads + plain head face. Industry standard: μ_thread=0.10, μ_head=0.05."}},
   "cu_antiseize": {K:0.15,mu:0.10,name:{no:"Kobber anti-seize",en:"Copper anti-seize"},
                    note:{no:"Høy temperatur til 1100°C. Ikke på austenittisk rustfritt (galvanisk).",
                          en:"High temp to 1100°C. Not on austenitic stainless (galvanic)."}},
-  "ni_antiseize": {K:0.13,mu:0.08,name:{no:"Nikkel anti-seize",en:"Nickel anti-seize"},
+  "ni_antiseize": {K:0.13,mu:0.08,tol:0.08,name:{no:"Nikkel anti-seize",en:"Nickel anti-seize"},
                    note:{no:"Rustfritt-mot-rustfritt, motvirker fastsetting, høy temperatur.",
                          en:"Stainless-on-stainless, galling prevention, high temp."}},
-  "ptfe":         {K:0.13,mu:0.09,name:{no:"PTFE / voksbelegg",en:"PTFE / wax coating"},
+  "ptfe":         {K:0.13,mu:0.09,tol:0.07,name:{no:"PTFE / voksbelegg",en:"PTFE / wax coating"},
                    note:{no:"Påført film. Svært konsistent hvis filmen ikke skades.",
                          en:"Pre-applied film. Very consistent if film undamaged."}},
   "loctite_222":  {K:0.18,mu:0.13,name:{no:"Loctite 222 (lilla)",en:"Loctite 222 (purple)"},
@@ -380,6 +407,22 @@ const LUBRICANTS = {
   "loctite_290":  {K:0.20,mu:0.14,name:{no:"Loctite 290 (gjennomtrengende)",en:"Loctite 290 (wicking)"},
                    note:{no:"Påføres ETTER tiltrekking - bruk underlagsflatens μ, ikke denne.",
                          en:"Applied AFTER tightening - use base surface μ, not this row."}},
+};
+
+// Underhode-friksjonskoeffisient (rb/d-faktor i NASA K) per hodegeometri.
+// Forsenket: standardfaktor delt på sin(halvvinkel fra akse) pga. kileeffekt.
+const HEAD_TYPES = {
+  "hex":    {cc:0.625, name:{no:"Sekskant / sylinder (umbrako)", en:"Hex / cylindrical (socket)"}},
+  "flange": {cc:0.75,  name:{no:"Flens (større anleggsflate)",   en:"Flanged (larger bearing)"}},
+  "csk90":  {cc:0.884, name:{no:"Forsenket 90° (umbrako)",       en:"Countersunk 90° (socket)"}},
+  "csk100": {cc:0.816, name:{no:"Forsenket 100° (luftfart)",     en:"Countersunk 100° (aerospace)"}},
+};
+
+// Momentenheter. f = Nm × f. dp = desimaler i visning.
+const UNITS = {
+  "Nm":   {f:1,          label:"Nm",    dp:1},
+  "ftlb": {f:0.73756215, label:"ft·lb", dp:1},
+  "inlb": {f:8.8507458,  label:"in·lb", dp:0},
 };
 
 const PRELOAD_PRESETS = {
@@ -404,6 +447,10 @@ no:{
   lbl_size:"Bolt", lbl_class:"Fasthetsklasse", lbl_lube:"Smøremiddel / gjengesikring",
   lbl_preload:"Forspenningsmål", lbl_method:"K-metode",
   lbl_thread:"Gjengetype", thread_coarse:"Grov", thread_fine:"Fin",
+  lbl_head:"Hodetype",
+  tol_label:"spredning",
+  warn_dry:(n)=>`<b>⚠ Gjelder tørr/ubehandlet bolt (${n}).</b> Smør du gjengene blir reell K lavere → samme moment gir for høy forspenning (fare for overstrekk). Velg riktig smørerad hvis bolten smøres.`,
+  warn_lubed:(n)=>`<b>⚠ Gjelder smurt bolt (${n}).</b> Er bolten i praksis tørr blir reell K høyere → samme moment gir for lav forspenning. Påfør samme smøring som valgt.`,
   lbl_trun:"Løpende (Nm)", lbl_ft:"Strekk (kN)", lbl_fs:"Skjær (kN)",
   hero_label:"Tiltrekkingsmoment",
   clamp_label:"klemkraft", run_label:"løpende",
@@ -424,10 +471,10 @@ no:{
   cap_rows:{tens_ult:"Bruddstrekk Ft,tillatt",yield:"Flytelast",proof:"Prøvelast",
             clamp:"Klemkraft (mål)",shear_ult:"Skjær tillatt (brudd)",shear_yld:"Skjær tillatt (flyt)",
             t_clamp:"Klemmoment T=K·F·d",t_install:"Tiltrekkingsmoment (inkl. løpende)"},
-  bycls_th:["Klasse","Klem (kN)","Moment (Nm)"],
+  bycls_th:["Klasse","Klem (kN)","Moment"],
   footnote_simple:"Antar 75% av flytegrense (NASA RP-1228). Bruk Avansert for andre forspenninger.",
   material:"Materiale", surface:"Overflate",
-  copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nTiltrekkingsmoment: ${t} Nm\nKlemkraft: ${cf} kN  ·  K=${k}`,
+  copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nTiltrekkingsmoment: ${t}\nKlemkraft: ${cf} kN  ·  K=${k}`,
 },
 en:{
   title:"Bolt Browser", lang:"NO",
@@ -435,6 +482,10 @@ en:{
   lbl_size:"Bolt", lbl_class:"Property class", lbl_lube:"Lubricant / threadlocker",
   lbl_preload:"Preload target", lbl_method:"K method",
   lbl_thread:"Thread type", thread_coarse:"Coarse", thread_fine:"Fine",
+  lbl_head:"Head type",
+  tol_label:"scatter",
+  warn_dry:(n)=>`<b>⚠ Valid for a dry/as-received bolt (${n}).</b> If you lubricate the threads the real K drops → the same torque over-tightens (yield risk). Pick a lubricated row if the bolt is lubed.`,
+  warn_lubed:(n)=>`<b>⚠ Valid for a lubricated bolt (${n}).</b> If the bolt is actually dry the real K is higher → the same torque under-clamps. Apply the same lubrication as selected.`,
   lbl_trun:"Running (Nm)", lbl_ft:"Tension (kN)", lbl_fs:"Shear (kN)",
   hero_label:"Install Torque",
   clamp_label:"clamp force", run_label:"running",
@@ -455,23 +506,30 @@ en:{
   cap_rows:{tens_ult:"Ultimate tensile Ft,allow",yield:"Yield load",proof:"Proof load",
             clamp:"Target clamp force",shear_ult:"Allowable shear (ult)",shear_yld:"Allowable shear (yield)",
             t_clamp:"Clamp torque T=K·F·d",t_install:"Install torque (incl. running)"},
-  bycls_th:["Class","Clamp (kN)","Torque (Nm)"],
+  bycls_th:["Class","Clamp (kN)","Torque"],
   footnote_simple:"Assumes 75% of yield (NASA RP-1228). Switch to Advanced for other preload targets.",
   material:"Material", surface:"Surface",
-  copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nInstall torque: ${t} Nm\nClamp force: ${cf} kN  ·  K=${k}`,
+  copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nInstall torque: ${t}\nClamp force: ${cf} kN  ·  K=${k}`,
 },
 };
 
 const POPULAR_SIZES = ["M6","M8","M10","M12","M16","M20","M24","M30"];
 
 /* ============================================================ math */
-function nasaK(d,P,muT,muC){
+function nasaK(d,P,muT,muC,cc){
+  cc=(cc===undefined)?0.625:cc;        // collar/under-head bearing-radius factor
   const dm=d-0.6495*P;
   const psi=Math.atan(P/(Math.PI*dm));
   const secA=1/Math.cos(30*Math.PI/180);
   const tanPsi=Math.tan(psi);
-  return (dm/(2*d))*((tanPsi+muT*secA)/(1-muT*tanPsi*secA))+0.625*muC;
+  return (dm/(2*d))*((tanPsi+muT*secA)/(1-muT*tanPsi*secA))+cc*muC;
 }
+function headCC(){ return (HEAD_TYPES[state.head]||HEAD_TYPES.hex).cc; }
+
+// torque-unit helpers
+function tVal(nm){ return nm*UNITS[state.unit].f; }
+function tUnit(){ return UNITS[state.unit].label; }
+function lubeTol(lube){ return (lube.tol!==undefined)?lube.tol:0.10; }
 
 function muPair(lube){
   // returns [mu_thread, mu_head], honoring split values if present
@@ -536,6 +594,8 @@ const state={
   preload:"Rp_75",
   method:"nasa",
   thread:"coarse",
+  head:"hex",
+  unit:"Nm",
   trun:0, ft:0, fs:0,
   pillsExpanded:false,
 };
@@ -594,6 +654,9 @@ function buildAll(){
   populateSelect($("method"), Object.entries(K_METHODS), (id,m)=>m.label[state.lang]);
   $("method").value=state.method;
   buildThreadSelect();
+  populateSelect($("head"), Object.entries(HEAD_TYPES),
+                 (id,h)=>`${h.name[state.lang]}  ·  ${(0.625===h.cc)?"std":"×"+(h.cc/0.625).toFixed(2)}`);
+  $("head").value=state.head;
   buildSizePills();
 }
 
@@ -610,6 +673,7 @@ function applyLabels(){
   $("lbl-preload").textContent=L.lbl_preload;
   $("lbl-method").textContent=L.lbl_method;
   $("lbl-thread").textContent=L.lbl_thread;
+  $("lbl-head").textContent=L.lbl_head;
   $("lbl-trun").textContent=L.lbl_trun;
   $("lbl-ft").textContent=L.lbl_ft;
   $("lbl-fs").textContent=L.lbl_fs;
@@ -646,22 +710,35 @@ function recalc(){
   let K;
   if(state.mode==="simple" || state.method==="nasa"){
     const [mt,mh]=muPair(lube);
-    K=nasaK(sz.d, sz.pitch, mt, mh);
+    K=nasaK(sz.d, sz.pitch, mt, mh, headCC());
   } else {
     K=lube.K;
   }
 
   const r=calc(sz,cls,K,basis,frac,state.trun,state.ft,state.fs);
 
-  $("torque-val").textContent=fmt(r.Tinstall);
+  $("torque-val").textContent=fmt(tVal(r.Tinstall));
+  $("hero-unit").textContent=tUnit();
   $("clamp-val").textContent=fmt(r.Fclamp);
   $("k-val").textContent=K.toFixed(3);
   $("as-val").textContent=fmt(sz.As);
   $("d-val").textContent=sz.d;
 
+  // tolerance band from friction scatter
+  const tol=lubeTol(lube);
+  const lo=tVal(r.Tinstall*(1-tol)), hi=tVal(r.Tinstall*(1+tol));
+  $("tol-line").firstChild.textContent=`±${Math.round(tol*100)}% · `;
+  $("tol-range").textContent=`${fmt(lo)}–${fmt(hi)} ${tUnit()}`;
+
+  // dry/lubricated condition warning
+  const cw=$("cond-warn");
+  cw.innerHTML = lube.dry ? t().warn_dry(lube.name[state.lang])
+                          : t().warn_lubed(lube.name[state.lang]);
+
   if(state.trun>0){
     $("trun-line").style.display="inline";
-    $("trun-show").textContent=fmt(state.trun);
+    $("trun-show").textContent=fmt(tVal(state.trun));
+    $("trun-unit").textContent=tUnit();
   } else {
     $("trun-line").style.display="none";
   }
@@ -699,8 +776,8 @@ function buildCapTable(r){
     [L.cap_rows.clamp,    fmt(r.Fclamp),  "kN"],
     [L.cap_rows.shear_ult,fmt(r.FsUlt),   "kN"],
     [L.cap_rows.shear_yld,fmt(r.FsYld),   "kN"],
-    [L.cap_rows.t_clamp,  fmt(r.Tclamp),  "Nm"],
-    [L.cap_rows.t_install,fmt(r.Tinstall),"Nm"],
+    [L.cap_rows.t_clamp,  fmt(tVal(r.Tclamp)),  tUnit()],
+    [L.cap_rows.t_install,fmt(tVal(r.Tinstall)),tUnit()],
   ];
   $("cap-table").innerHTML=rows.map(([k,v,u])=>
     `<tr><td>${k}</td><td class="num">${v} <small style="color:var(--muted)">${u}</small></td></tr>`
@@ -710,13 +787,13 @@ function buildCapTable(r){
 function buildByClassTable(sz,lube,basis,frac){
   const L=t(), th=L.bycls_th;
   const [mt,mh]=muPair(lube);
-  let html=`<thead><tr><th>${th[0]}</th><th class="num">${th[1]}</th><th class="num">${th[2]}</th></tr></thead><tbody>`;
+  let html=`<thead><tr><th>${th[0]}</th><th class="num">${th[1]}</th><th class="num">${th[2]} (${tUnit()})</th></tr></thead><tbody>`;
   for(const [cid,c] of Object.entries(CLASSES)){
-    const K = state.method==="nasa" ? nasaK(sz.d,sz.pitch,mt,mh) : lube.K;
+    const K = state.method==="nasa" ? nasaK(sz.d,sz.pitch,mt,mh,headCC()) : lube.K;
     const Fcl = frac*sz.As*c[basis]/1000;
     const T = K*Fcl*1000*sz.d/1000;
     const cur = cid===state.cls ? "current" : "";
-    html += `<tr class="${cur}"><td>${cid}</td><td class="num">${fmt(Fcl)}</td><td class="num">${fmt(T)}</td></tr>`;
+    html += `<tr class="${cur}"><td>${cid}</td><td class="num">${fmt(Fcl)}</td><td class="num">${fmt(tVal(T))}</td></tr>`;
   }
   html+="</tbody>";
   $("bycls-table").innerHTML=html;
@@ -762,6 +839,13 @@ function bindEvents(){
   $("preload").addEventListener("change",e=>{ state.preload=e.target.value; recalc(); });
   $("method").addEventListener("change",e=>{ state.method=e.target.value; recalc(); });
   $("thread").addEventListener("change",e=>{ state.thread=e.target.value; recalc(); });
+  $("head").addEventListener("change",e=>{ state.head=e.target.value; recalc(); });
+  $("unit-toggle").addEventListener("click",e=>{
+    const b=e.target.closest("button[data-unit]"); if(!b) return;
+    state.unit=b.dataset.unit;
+    [...$("unit-toggle").children].forEach(x=>x.classList.toggle("on", x===b));
+    recalc();
+  });
   $("trun").addEventListener("input",e=>{ state.trun=parseFloat(e.target.value)||0; recalc(); });
   $("ft").addEventListener("input",e=>{ state.ft=parseFloat(e.target.value)||0; recalc(); });
   $("fs").addEventListener("input",e=>{ state.fs=parseFloat(e.target.value)||0; recalc(); });
@@ -773,10 +857,10 @@ function bindEvents(){
     else{const p=PRELOAD_PRESETS[state.preload];basis=p.basis;frac=p.frac;}
     const [mt,mh]=muPair(lube);
     const K = (state.mode==="simple" || state.method==="nasa")
-              ? nasaK(sz.d,sz.pitch,mt,mh) : lube.K;
+              ? nasaK(sz.d,sz.pitch,mt,mh,headCC()) : lube.K;
     const r=calc(sz,cls,K,basis,frac,state.trun,state.ft,state.fs);
     const text=t().copy_template(state.size, state.cls, lube.name[state.lang],
-                                  fmt(r.Tinstall), K.toFixed(3), fmt(r.Fclamp));
+                                  fmt(tVal(r.Tinstall))+" "+tUnit(), K.toFixed(3), fmt(r.Fclamp));
     try { await navigator.clipboard.writeText(text); }
     catch(e){ /* fallback: select via temp textarea */
       const ta=document.createElement("textarea"); ta.value=text;
