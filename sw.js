@@ -1,11 +1,13 @@
 // Bolt Browser service worker — cache-first for offline use
-const CACHE = "bolter-v7";
+const CACHE = "bolter-v8";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-maskable.svg",
+  "./logo-mark.jpg",
+  "./logo-text.png",
 ];
 
 self.addEventListener("install", e => {
