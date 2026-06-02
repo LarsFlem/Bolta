@@ -164,6 +164,14 @@ body.advanced .num-row.advanced-only{display:grid}
 .num-row{grid-template-columns:1fr 1fr 1fr;gap:8px}
 .num-row .field{margin-bottom:12px}
 
+/* tightening-method blocks */
+.num-row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.num-row2 .field{margin-bottom:10px}
+.method-block{margin-bottom:20px}
+.method-block:last-child{margin-bottom:0}
+.method-title{font-size:12px;font-weight:700;color:var(--accent2);
+  letter-spacing:0.04em;margin:2px 0 10px}
+
 @media (max-width:380px){
   .hero-value{font-size:52px}
   .size-pills{grid-template-columns:repeat(4,1fr)}
@@ -288,6 +296,40 @@ body.advanced .num-row.advanced-only{display:grid}
 <section class="collapsible advanced-only">
   <summary id="sec-geom">Geometri</summary>
   <div class="body"><table id="geom-table"></table></div>
+</section>
+
+<section class="collapsible advanced-only">
+  <summary id="sec-methods">Monteringsmetoder</summary>
+  <div class="body">
+
+    <div class="method-block">
+      <div class="method-title" id="mt-tension">Hydraulisk strekk</div>
+      <div class="num-row2">
+        <div class="field">
+          <label id="lbl-piston">Stempelareal (cm²)</label>
+          <input type="number" id="piston" inputmode="decimal" step="0.1" value="10">
+        </div>
+        <div class="field">
+          <label id="lbl-ltf">Lasttapsfaktor</label>
+          <input type="number" id="ltf" inputmode="decimal" step="0.01" value="1.10">
+        </div>
+      </div>
+      <table id="tension-table"></table>
+    </div>
+
+    <div class="method-block">
+      <div class="method-title" id="mt-angle">Vinkelmetode (moment + grader)</div>
+      <div class="num-row2">
+        <div class="field">
+          <label id="lbl-grip">Klemlengde L (mm)</label>
+          <input type="number" id="grip" inputmode="decimal" step="1" value="0" placeholder="auto = 4×d">
+        </div>
+      </div>
+      <table id="angle-table"></table>
+      <div class="note" id="angle-note"></div>
+    </div>
+
+  </div>
 </section>
 
 <section class="collapsible">
@@ -451,6 +493,13 @@ no:{
   tol_label:"spredning",
   warn_dry:(n)=>`<b>⚠ Gjelder tørr/ubehandlet bolt (${n}).</b> Smør du gjengene blir reell K lavere → samme moment gir for høy forspenning (fare for overstrekk). Velg riktig smørerad hvis bolten smøres.`,
   warn_lubed:(n)=>`<b>⚠ Gjelder smurt bolt (${n}).</b> Er bolten i praksis tørr blir reell K høyere → samme moment gir for lav forspenning. Påfør samme smøring som valgt.`,
+  sec_methods:"Monteringsmetoder",
+  mt_tension:"Hydraulisk strekk", mt_angle:"Vinkelmetode (moment + grader)",
+  lbl_piston:"Stempelareal (cm²)", lbl_ltf:"Lasttapsfaktor", lbl_grip:"Klemlengde L (mm)",
+  mt_target:"Mål-forspenning", mt_ften:"Påført strekk (×LTF)",
+  mt_press:"Hydraulisk trykk", mt_grip:"Klemlengde (brukt)",
+  mt_snug:"Snugmoment (~25%)", mt_turn:"Vinkel etter snugg",
+  angle_note:"Forenklet: ren boltstrekk i et stivt stålledd (E=205 GPa, areal Aₛ). Mykere ledd, pakninger eller mange plater krever større vinkel. Følg alltid produsentens spesifiserte vinkel når den finnes.",
   lbl_trun:"Løpende (Nm)", lbl_ft:"Strekk (kN)", lbl_fs:"Skjær (kN)",
   hero_label:"Tiltrekkingsmoment",
   clamp_label:"klemkraft", run_label:"løpende",
@@ -486,6 +535,13 @@ en:{
   tol_label:"scatter",
   warn_dry:(n)=>`<b>⚠ Valid for a dry/as-received bolt (${n}).</b> If you lubricate the threads the real K drops → the same torque over-tightens (yield risk). Pick a lubricated row if the bolt is lubed.`,
   warn_lubed:(n)=>`<b>⚠ Valid for a lubricated bolt (${n}).</b> If the bolt is actually dry the real K is higher → the same torque under-clamps. Apply the same lubrication as selected.`,
+  sec_methods:"Tightening methods",
+  mt_tension:"Hydraulic tensioning", mt_angle:"Angle method (torque + degrees)",
+  lbl_piston:"Piston area (cm²)", lbl_ltf:"Load-transfer factor", lbl_grip:"Grip length L (mm)",
+  mt_target:"Target preload", mt_ften:"Applied tension (×LTF)",
+  mt_press:"Hydraulic pressure", mt_grip:"Grip length (used)",
+  mt_snug:"Snug torque (~25%)", mt_turn:"Angle after snug",
+  angle_note:"Simplified: pure bolt stretch in a rigid steel joint (E=205 GPa, area Aₛ). Softer joints, gaskets or many plates need a larger angle. Always follow the manufacturer's specified angle when given.",
   lbl_trun:"Running (Nm)", lbl_ft:"Tension (kN)", lbl_fs:"Shear (kN)",
   hero_label:"Install Torque",
   clamp_label:"clamp force", run_label:"running",
@@ -596,6 +652,7 @@ const state={
   thread:"coarse",
   head:"hex",
   unit:"Nm",
+  piston:10, ltf:1.10, grip:0,
   trun:0, ft:0, fs:0,
   pillsExpanded:false,
 };
@@ -687,6 +744,12 @@ function applyLabels(){
   $("sec-cap").textContent=L.sec_cap;
   $("sec-bycls").textContent=L.sec_bycls;
   $("sec-geom").textContent=L.sec_geom;
+  $("sec-methods").textContent=L.sec_methods;
+  $("mt-tension").textContent=L.mt_tension;
+  $("mt-angle").textContent=L.mt_angle;
+  $("lbl-piston").textContent=L.lbl_piston;
+  $("lbl-ltf").textContent=L.lbl_ltf;
+  $("lbl-grip").textContent=L.lbl_grip;
   $("sec-info").textContent=L.sec_info;
   $("copy-label").textContent=L.copy;
   $("footnote").textContent=L.footnote_simple;
@@ -765,7 +828,42 @@ function recalc(){
     buildCapTable(r);
     buildByClassTable(sz,lube,basis,frac);
     buildGeomTable(sz);
+    buildMethods(r,sz,K);
   }
+}
+
+function buildMethods(r,sz,K){
+  const L=t();
+  const cell=([k,v,u])=>`<tr><td>${k}</td><td class="num">${v}`+
+    (u?` <small style="color:var(--muted)">${u}</small>`:"")+`</td></tr>`;
+
+  // --- hydraulic tensioner: pressure to reach target residual preload ---
+  const F=r.Fclamp;                       // kN, target residual preload
+  const Ap=(state.piston>0?state.piston:0)*100;  // cm² -> mm²
+  const Ften=F*(state.ltf>0?state.ltf:1); // kN applied (compensate load loss)
+  const pMPa=Ap>0 ? (Ften*1000)/Ap : 0;   // N/mm² = MPa
+  $("tension-table").innerHTML=[
+    [L.mt_target, fmt(F),    "kN"],
+    [L.mt_ften,   fmt(Ften), "kN"],
+    [L.mt_press,  Ap>0?fmt(pMPa*10):"—", "bar"],
+    [L.mt_press,  Ap>0?fmt(pMPa):"—",    "MPa"],
+  ].map(cell).join("");
+
+  // --- angle method: snug torque + estimated turn-of-nut angle ---
+  const E=205000;                         // MPa, steel
+  const gripL=state.grip>0?state.grip:4*sz.d;
+  const Fn=F*1000;                        // N target
+  const snugFrac=0.25;
+  const Tsnug=K*(snugFrac*Fn)*sz.d/1000;  // Nm
+  const dF=(1-snugFrac)*Fn;               // N applied by the angle
+  const stretch=dF*gripL/(sz.As*E);       // mm of bolt elongation
+  const angle=360*stretch/sz.pitch;       // degrees
+  $("angle-table").innerHTML=[
+    [L.mt_grip, fmt(gripL),          "mm"],
+    [L.mt_snug, fmt(tVal(Tsnug)),    tUnit()],
+    [L.mt_turn, Math.round(angle)+"°", ""],
+  ].map(cell).join("");
+  $("angle-note").textContent=L.angle_note;
 }
 
 function buildCapTable(r){
@@ -846,6 +944,9 @@ function bindEvents(){
     [...$("unit-toggle").children].forEach(x=>x.classList.toggle("on", x===b));
     recalc();
   });
+  $("piston").addEventListener("input",e=>{ state.piston=parseFloat(e.target.value)||0; recalc(); });
+  $("ltf").addEventListener("input",e=>{ state.ltf=parseFloat(e.target.value)||0; recalc(); });
+  $("grip").addEventListener("input",e=>{ state.grip=parseFloat(e.target.value)||0; recalc(); });
   $("trun").addEventListener("input",e=>{ state.trun=parseFloat(e.target.value)||0; recalc(); });
   $("ft").addEventListener("input",e=>{ state.ft=parseFloat(e.target.value)||0; recalc(); });
   $("fs").addEventListener("input",e=>{ state.fs=parseFloat(e.target.value)||0; recalc(); });
