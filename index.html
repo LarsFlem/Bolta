@@ -198,6 +198,11 @@ body.advanced .num-row.advanced-only{display:grid}
   <select id="method"></select>
 </div>
 
+<div class="field advanced-only">
+  <label id="lbl-thread">Gjengetype</label>
+  <select id="thread"></select>
+</div>
+
 <div class="num-row advanced-only">
   <div class="field">
     <label id="lbl-trun">Løpende (Nm)</label>
@@ -298,6 +303,26 @@ const SIZES = {
   "M200":{d:200, pitch:6.0,  As:29250, wrench:290, head_h:125.0,tap:194.0, hole:215.0},
 };
 
+// Most common ISO 261 fine-thread pitch per size (single representative pitch).
+const FINE_PITCH = {
+  "M3":0.35,"M4":0.5,"M5":0.5,"M6":0.75,"M8":1.0,"M10":1.25,"M12":1.5,
+  "M16":1.5,"M20":1.5,"M24":2.0,"M30":2.0,"M36":3.0,"M42":3.0,"M48":3.0,
+  "M56":4.0,"M64":4.0,"M80":4.0,"M100":4.0,"M125":4.0,"M160":4.0,"M200":4.0,
+};
+
+// ISO 898-1 stress area from nominal d and pitch P (matches the coarse table exactly).
+function stressArea(d,P){ const dm=d-0.9382*P; return Math.PI/4*dm*dm; }
+
+// Returns the size object, overriding pitch + As for fine thread.
+function effSize(id,thread){
+  const s=SIZES[id];
+  if(thread==="fine" && FINE_PITCH[id]!==undefined){
+    const P=FINE_PITCH[id];
+    return Object.assign({},s,{pitch:P, As:+stressArea(s.d,P).toFixed(s.d<10?2:0)});
+  }
+  return s;
+}
+
 const CLASSES = {
   "4.6":  {Rm:400, Rp02:240, Sp:225, material:{no:"Lav-/medium karbonstål",en:"Low/medium carbon steel"}},
   "4.8":  {Rm:420, Rp02:340, Sp:310, material:{no:"Lav-/medium karbon, kaldformet",en:"Low/medium carbon, cold worked"}},
@@ -378,6 +403,7 @@ no:{
   mode_simple:"Enkel", mode_advanced:"Avansert",
   lbl_size:"Bolt", lbl_class:"Fasthetsklasse", lbl_lube:"Smøremiddel / gjengesikring",
   lbl_preload:"Forspenningsmål", lbl_method:"K-metode",
+  lbl_thread:"Gjengetype", thread_coarse:"Grov", thread_fine:"Fin",
   lbl_trun:"Løpende (Nm)", lbl_ft:"Strekk (kN)", lbl_fs:"Skjær (kN)",
   hero_label:"Tiltrekkingsmoment",
   clamp_label:"klemkraft", run_label:"løpende",
@@ -408,6 +434,7 @@ en:{
   mode_simple:"Simple", mode_advanced:"Advanced",
   lbl_size:"Bolt", lbl_class:"Property class", lbl_lube:"Lubricant / threadlocker",
   lbl_preload:"Preload target", lbl_method:"K method",
+  lbl_thread:"Thread type", thread_coarse:"Coarse", thread_fine:"Fine",
   lbl_trun:"Running (Nm)", lbl_ft:"Tension (kN)", lbl_fs:"Shear (kN)",
   hero_label:"Install Torque",
   clamp_label:"clamp force", run_label:"running",
@@ -508,6 +535,7 @@ const state={
   lube:"molykote",
   preload:"Rp_75",
   method:"nasa",
+  thread:"coarse",
   trun:0, ft:0, fs:0,
   pillsExpanded:false,
 };
@@ -534,10 +562,23 @@ function buildSizePills(){
     const b=document.createElement("button");
     b.type="button"; b.textContent=s;
     if(s===state.size) b.classList.add("on");
-    b.addEventListener("click",()=>{ state.size=s; buildSizePills(); $("size-select").value=s; recalc(); });
+    b.addEventListener("click",()=>{ state.size=s; buildSizePills(); buildThreadSelect(); $("size-select").value=s; recalc(); });
     c.appendChild(b);
   }
   $("size-more").textContent=state.pillsExpanded?t().size_less:t().size_more;
+}
+
+function buildThreadSelect(){
+  const sel=$("thread"), L=t();
+  const coarseP=SIZES[state.size].pitch;
+  const fineP=FINE_PITCH[state.size];
+  sel.innerHTML="";
+  const mk=(val,label)=>{const o=document.createElement("option");o.value=val;o.textContent=label;sel.appendChild(o);};
+  mk("coarse", `${L.thread_coarse} (${state.size}×${coarseP})`);
+  if(fineP!==undefined) mk("fine", `${L.thread_fine} (${state.size}×${fineP})`);
+  // fall back to coarse if current size has no fine option
+  if(state.thread==="fine" && fineP===undefined) state.thread="coarse";
+  sel.value=state.thread;
 }
 
 function buildAll(){
@@ -552,6 +593,7 @@ function buildAll(){
   $("preload").value=state.preload;
   populateSelect($("method"), Object.entries(K_METHODS), (id,m)=>m.label[state.lang]);
   $("method").value=state.method;
+  buildThreadSelect();
   buildSizePills();
 }
 
@@ -567,6 +609,7 @@ function applyLabels(){
   $("lbl-lube").textContent=L.lbl_lube;
   $("lbl-preload").textContent=L.lbl_preload;
   $("lbl-method").textContent=L.lbl_method;
+  $("lbl-thread").textContent=L.lbl_thread;
   $("lbl-trun").textContent=L.lbl_trun;
   $("lbl-ft").textContent=L.lbl_ft;
   $("lbl-fs").textContent=L.lbl_fs;
@@ -588,7 +631,7 @@ function applyLabels(){
 
 /* ============================================================ recalc */
 function recalc(){
-  const sz=SIZES[state.size];
+  const sz=effSize(state.size, state.thread);
   const cls=CLASSES[state.cls];
   const lube=LUBRICANTS[state.lube];
 
@@ -712,18 +755,19 @@ function bindEvents(){
   $("mode-advanced").addEventListener("click",()=>setMode("advanced"));
   $("lang-toggle").addEventListener("click",()=>setLang(state.lang==="no"?"en":"no"));
 
-  $("size-select").addEventListener("change",e=>{ state.size=e.target.value; buildSizePills(); recalc(); });
+  $("size-select").addEventListener("change",e=>{ state.size=e.target.value; buildSizePills(); buildThreadSelect(); recalc(); });
   $("size-more").addEventListener("click",()=>{ state.pillsExpanded=!state.pillsExpanded; buildSizePills(); });
   $("class").addEventListener("change",e=>{ state.cls=e.target.value; recalc(); });
   $("lube").addEventListener("change",e=>{ state.lube=e.target.value; recalc(); });
   $("preload").addEventListener("change",e=>{ state.preload=e.target.value; recalc(); });
   $("method").addEventListener("change",e=>{ state.method=e.target.value; recalc(); });
+  $("thread").addEventListener("change",e=>{ state.thread=e.target.value; recalc(); });
   $("trun").addEventListener("input",e=>{ state.trun=parseFloat(e.target.value)||0; recalc(); });
   $("ft").addEventListener("input",e=>{ state.ft=parseFloat(e.target.value)||0; recalc(); });
   $("fs").addEventListener("input",e=>{ state.fs=parseFloat(e.target.value)||0; recalc(); });
 
   $("copy-btn").addEventListener("click",async()=>{
-    const sz=SIZES[state.size], cls=CLASSES[state.cls], lube=LUBRICANTS[state.lube];
+    const sz=effSize(state.size, state.thread), cls=CLASSES[state.cls], lube=LUBRICANTS[state.lube];
     let basis,frac;
     if(state.mode==="simple"){basis="Rp02";frac=0.75;}
     else{const p=PRELOAD_PRESETS[state.preload];basis=p.basis;frac=p.frac;}
