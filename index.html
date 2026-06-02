@@ -101,13 +101,13 @@ header{position:sticky;top:0;background:var(--bg);z-index:10;
 .hero-sub{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;
   display:flex;flex-wrap:wrap;gap:14px;margin-top:10px}
 .hero-sub b{color:var(--text);font-weight:600}
-.copy-btn{
-  position:absolute;top:18px;right:18px;
+.hero-actions{position:absolute;top:16px;right:16px;display:flex;gap:8px}
+.copy-btn,.share-btn{
   background:var(--panel);color:var(--text);border:1px solid var(--panel2);
   border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;
   min-height:36px;display:inline-flex;align-items:center;gap:6px;
 }
-.copy-btn.copied{background:var(--ok);color:#0a1f0a;border-color:var(--ok)}
+.copy-btn.copied,.share-btn.copied{background:var(--ok);color:#0a1f0a;border-color:var(--ok)}
 
 /* stat grid */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
@@ -171,6 +171,17 @@ body.advanced .num-row.advanced-only{display:grid}
 .method-block:last-child{margin-bottom:0}
 .method-title{font-size:12px;font-weight:700;color:var(--accent2);
   letter-spacing:0.04em;margin:2px 0 10px}
+
+/* flange sequence diagram */
+.flange-svg{display:block;margin:6px auto 14px;max-width:240px;width:100%}
+.flange-svg circle{fill:var(--panel2);stroke:var(--accent);stroke-width:1.5}
+.flange-svg text{fill:var(--text);font-size:13px;font-weight:700;
+  text-anchor:middle;dominant-baseline:central;font-family:inherit}
+.flange-svg .ring{fill:none;stroke:var(--hi);stroke-width:1.5}
+.seq-line{font-size:13px;color:var(--text);line-height:1.6;word-spacing:2px}
+.seq-line b{color:var(--accent);font-variant-numeric:tabular-nums}
+.status-ok{color:var(--ok);font-weight:700}
+.status-bad{color:var(--bad);font-weight:700}
 
 @media (max-width:380px){
   .hero-value{font-size:52px}
@@ -259,7 +270,10 @@ body.advanced .num-row.advanced-only{display:grid}
     <button type="button" data-unit="ftlb">ft·lb</button>
     <button type="button" data-unit="inlb">in·lb</button>
   </div>
-  <button class="copy-btn" id="copy-btn" type="button">⧉ <span id="copy-label">Kopier</span></button>
+  <div class="hero-actions">
+    <button class="share-btn" id="share-btn" type="button">🔗 <span id="share-label">Del</span></button>
+    <button class="copy-btn" id="copy-btn" type="button">⧉ <span id="copy-label">Kopier</span></button>
+  </div>
 </div>
 
 <div class="warn-box" id="cond-warn"></div>
@@ -329,6 +343,40 @@ body.advanced .num-row.advanced-only{display:grid}
       <div class="note" id="angle-note"></div>
     </div>
 
+  </div>
+</section>
+
+<section class="collapsible advanced-only">
+  <summary id="sec-flange">Tiltrekkingssekvens (flens)</summary>
+  <div class="body">
+    <div class="num-row2">
+      <div class="field">
+        <label id="lbl-nbolts">Antall bolter</label>
+        <input type="number" id="nbolts" inputmode="numeric" step="1" min="2" max="48" value="8">
+      </div>
+    </div>
+    <svg id="flange-svg" class="flange-svg" viewBox="0 0 200 200"></svg>
+    <div class="seq-line" id="flange-seq"></div>
+    <table id="flange-table"></table>
+    <div class="note" id="flange-note"></div>
+  </div>
+</section>
+
+<section class="collapsible advanced-only">
+  <summary id="sec-engage">Gjengeinngrep</summary>
+  <div class="body">
+    <div class="num-row2">
+      <div class="field">
+        <label id="lbl-female">Mormateriale</label>
+        <select id="female"></select>
+      </div>
+      <div class="field">
+        <label id="lbl-engage">Inngrepsdybde (mm)</label>
+        <input type="number" id="engage" inputmode="decimal" step="0.5" value="0" placeholder="mål">
+      </div>
+    </div>
+    <table id="engage-table"></table>
+    <div class="note" id="engage-note"></div>
   </div>
 </section>
 
@@ -467,6 +515,16 @@ const UNITS = {
   "inlb": {f:8.8507458,  label:"in·lb", dp:0},
 };
 
+// Anbefalt minste gjengeinngrep som multiplum av nominell diameter d,
+// for at bolten ryker før gjengene rives ut (tommelfingerregel).
+const FEMALE_MATERIALS = {
+  "steel":   {mult:1.0, name:{no:"Stål (≥ samme klasse)", en:"Steel (≥ same class)"}},
+  "castiron":{mult:1.5, name:{no:"Støpejern",             en:"Cast iron"}},
+  "brass":   {mult:1.5, name:{no:"Messing / bronse",      en:"Brass / bronze"}},
+  "alu":     {mult:2.0, name:{no:"Aluminium",             en:"Aluminium"}},
+  "mag":     {mult:2.5, name:{no:"Magnesium",             en:"Magnesium"}},
+};
+
 const PRELOAD_PRESETS = {
   "Sp_60": {basis:"Sp",  frac:0.60, label:{no:"60% av Sp",                 en:"60% of proof (Sp)"}},
   "Sp_70": {basis:"Sp",  frac:0.70, label:{no:"70% av Sp",                 en:"70% of proof (Sp)"}},
@@ -500,6 +558,15 @@ no:{
   mt_press:"Hydraulisk trykk", mt_grip:"Klemlengde (brukt)",
   mt_snug:"Snugmoment (~25%)", mt_turn:"Vinkel etter snugg",
   angle_note:"Forenklet: ren boltstrekk i et stivt stålledd (E=205 GPa, areal Aₛ). Mykere ledd, pakninger eller mange plater krever større vinkel. Følg alltid produsentens spesifiserte vinkel når den finnes.",
+  sec_flange:"Tiltrekkingssekvens (flens)", lbl_nbolts:"Antall bolter",
+  flange_seq_label:"Rekkefølge:",
+  flange_pass:["Trinn 1 — 30%","Trinn 2 — 60%","Trinn 3 — 100%"],
+  flange_note:"Trekk i kryss/stjernemønster i 2–3 trinn. Tallene i ringen viser rekkefølgen. Kjør en siste runde rundt hele flensen på 100%. For pakninger: følg pakningsprodusentens moment.",
+  sec_engage:"Gjengeinngrep", lbl_female:"Mormateriale", lbl_engage:"Inngrepsdybde (mm)",
+  eng_req:"Anbefalt min. inngrep", eng_have:"Angitt inngrep", eng_mult:"Faktor",
+  eng_ok:"✓ Tilstrekkelig", eng_bad:"⚠ For kort — fare for utriving",
+  eng_note:"Tommelfingerregel: nok gjenge til at bolten ryker før gjengene rives ut. Mer enn ~2–3×d gir lite ekstra. Gjelder full gjenge i hullet.",
+  share:"Del", shared:"Lenke kopiert!",
   lbl_trun:"Løpende (Nm)", lbl_ft:"Strekk (kN)", lbl_fs:"Skjær (kN)",
   hero_label:"Tiltrekkingsmoment",
   clamp_label:"klemkraft", run_label:"løpende",
@@ -542,6 +609,15 @@ en:{
   mt_press:"Hydraulic pressure", mt_grip:"Grip length (used)",
   mt_snug:"Snug torque (~25%)", mt_turn:"Angle after snug",
   angle_note:"Simplified: pure bolt stretch in a rigid steel joint (E=205 GPa, area Aₛ). Softer joints, gaskets or many plates need a larger angle. Always follow the manufacturer's specified angle when given.",
+  sec_flange:"Tightening sequence (flange)", lbl_nbolts:"Number of bolts",
+  flange_seq_label:"Order:",
+  flange_pass:["Pass 1 — 30%","Pass 2 — 60%","Pass 3 — 100%"],
+  flange_note:"Tighten in a cross/star pattern over 2–3 passes. The numbers in the ring show the order. Finish with one full round at 100%. For gaskets: follow the gasket maker's torque.",
+  sec_engage:"Thread engagement", lbl_female:"Female material", lbl_engage:"Engagement depth (mm)",
+  eng_req:"Recommended min. engagement", eng_have:"Entered engagement", eng_mult:"Factor",
+  eng_ok:"✓ Adequate", eng_bad:"⚠ Too short — stripping risk",
+  eng_note:"Rule of thumb: enough thread so the bolt breaks before the threads strip. Beyond ~2–3×d adds little. Assumes full thread in the hole.",
+  share:"Share", shared:"Link copied!",
   lbl_trun:"Running (Nm)", lbl_ft:"Tension (kN)", lbl_fs:"Shear (kN)",
   hero_label:"Install Torque",
   clamp_label:"clamp force", run_label:"running",
@@ -653,6 +729,7 @@ const state={
   head:"hex",
   unit:"Nm",
   piston:10, ltf:1.10, grip:0,
+  nbolts:8, female:"steel", engage:0,
   trun:0, ft:0, fs:0,
   pillsExpanded:false,
 };
@@ -714,6 +791,9 @@ function buildAll(){
   populateSelect($("head"), Object.entries(HEAD_TYPES),
                  (id,h)=>`${h.name[state.lang]}  ·  ${(0.625===h.cc)?"std":"×"+(h.cc/0.625).toFixed(2)}`);
   $("head").value=state.head;
+  populateSelect($("female"), Object.entries(FEMALE_MATERIALS),
+                 (id,m)=>`${m.name[state.lang]}  ·  ${m.mult.toFixed(1)}×d`);
+  $("female").value=state.female;
   buildSizePills();
 }
 
@@ -750,6 +830,12 @@ function applyLabels(){
   $("lbl-piston").textContent=L.lbl_piston;
   $("lbl-ltf").textContent=L.lbl_ltf;
   $("lbl-grip").textContent=L.lbl_grip;
+  $("sec-flange").textContent=L.sec_flange;
+  $("lbl-nbolts").textContent=L.lbl_nbolts;
+  $("sec-engage").textContent=L.sec_engage;
+  $("lbl-female").textContent=L.lbl_female;
+  $("lbl-engage").textContent=L.lbl_engage;
+  $("share-label").textContent=L.share;
   $("sec-info").textContent=L.sec_info;
   $("copy-label").textContent=L.copy;
   $("footnote").textContent=L.footnote_simple;
@@ -829,7 +915,10 @@ function recalc(){
     buildByClassTable(sz,lube,basis,frac);
     buildGeomTable(sz);
     buildMethods(r,sz,K);
+    buildFlange(r);
+    buildEngage(sz);
   }
+  encodeState();
 }
 
 function buildMethods(r,sz,K){
@@ -864,6 +953,93 @@ function buildMethods(r,sz,K){
     [L.mt_turn, Math.round(angle)+"°", ""],
   ].map(cell).join("");
   $("angle-note").textContent=L.angle_note;
+}
+
+// cross/star tightening order for n bolts (1-indexed positions around the ring)
+function flangeSequence(n){
+  if(n<2) return [1];
+  const half=Math.floor(n/2);
+  let firstHalf=[];
+  if(half%2===0){                    // spread the first-half picks
+    const q=half/2;
+    for(let i=1;i<=q;i++){ firstHalf.push(i); firstHalf.push(i+q); }
+  } else {
+    for(let i=1;i<=half;i++) firstHalf.push(i);
+  }
+  const seq=[];
+  for(const i of firstHalf){ seq.push(i); if(i+half<=n) seq.push(i+half); }
+  for(let i=1;i<=n;i++) if(!seq.includes(i)) seq.push(i);  // leftover (odd n)
+  return seq;
+}
+
+function buildFlange(r){
+  const L=t();
+  let n=Math.round(state.nbolts); if(!(n>=2)) n=2; if(n>48) n=48;
+  const seq=flangeSequence(n);
+  // order[position] = step number at that position
+  const order=new Array(n+1);
+  seq.forEach((pos,idx)=>{ order[pos]=idx+1; });
+  // SVG ring with numbered positions (number shown = tightening step)
+  const cx=100,cy=100,R=78;
+  let svg=`<circle class="ring" cx="${cx}" cy="${cy}" r="${R}"/>`;
+  for(let p=1;p<=n;p++){
+    const ang=(-90+(p-1)*360/n)*Math.PI/180;
+    const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang);
+    svg+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13"/>`+
+         `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}">${order[p]}</text>`;
+  }
+  $("flange-svg").innerHTML=svg;
+  $("flange-seq").innerHTML=`${L.flange_seq_label} <b>${seq.join(" → ")}</b>`;
+  const T=r.Tinstall;
+  $("flange-table").innerHTML=[0.30,0.60,1.00].map((f,i)=>
+    `<tr><td>${L.flange_pass[i]}</td><td class="num">${fmt(tVal(T*f))} `+
+    `<small style="color:var(--muted)">${tUnit()}</small></td></tr>`).join("");
+  $("flange-note").textContent=L.flange_note;
+}
+
+function buildEngage(sz){
+  const L=t();
+  const m=FEMALE_MATERIALS[state.female]||FEMALE_MATERIALS.steel;
+  const req=m.mult*sz.d;             // recommended min engagement (mm)
+  const have=state.engage>0?state.engage:0;
+  const ok=have>=req;
+  const rows=[
+    [L.eng_mult, m.mult.toFixed(1)+"×d", ""],
+    [L.eng_req,  fmt(req), "mm"],
+  ];
+  if(have>0) rows.push([L.eng_have, fmt(have), "mm"]);
+  $("engage-table").innerHTML=rows.map(([k,v,u])=>
+    `<tr><td>${k}</td><td class="num">${v}`+(u?` <small style="color:var(--muted)">${u}</small>`:"")+`</td></tr>`
+  ).join("");
+  $("engage-note").innerHTML = (have>0
+      ? `<span class="${ok?'status-ok':'status-bad'}">${ok?L.eng_ok:L.eng_bad}</span><br>`
+      : "") + L.eng_note;
+}
+
+/* ---- shareable URL: encode/restore state ---- */
+const URL_KEYS=["lang","mode","size","cls","lube","preload","method","thread",
+  "head","unit","piston","ltf","grip","nbolts","female","engage","trun","ft","fs"];
+const URL_NUM=new Set(["piston","ltf","grip","nbolts","engage","trun","ft","fs"]);
+function encodeState(){
+  const p=new URLSearchParams();
+  for(const k of URL_KEYS) p.set(k, state[k]);
+  history.replaceState(null,"", location.pathname+"?"+p.toString());
+}
+function loadState(){
+  const p=new URLSearchParams(location.search);
+  if(![...p.keys()].length) return;
+  for(const k of URL_KEYS){
+    if(!p.has(k)) continue;
+    const v=p.get(k);
+    state[k]=URL_NUM.has(k) ? (parseFloat(v)||0) : v;
+  }
+}
+function syncInputs(){
+  // push restored values into the static input elements + toggles
+  $("piston").value=state.piston; $("ltf").value=state.ltf; $("grip").value=state.grip;
+  $("nbolts").value=state.nbolts; $("engage").value=state.engage;
+  $("trun").value=state.trun; $("ft").value=state.ft; $("fs").value=state.fs;
+  [...$("unit-toggle").children].forEach(b=>b.classList.toggle("on", b.dataset.unit===state.unit));
 }
 
 function buildCapTable(r){
@@ -947,6 +1123,9 @@ function bindEvents(){
   $("piston").addEventListener("input",e=>{ state.piston=parseFloat(e.target.value)||0; recalc(); });
   $("ltf").addEventListener("input",e=>{ state.ltf=parseFloat(e.target.value)||0; recalc(); });
   $("grip").addEventListener("input",e=>{ state.grip=parseFloat(e.target.value)||0; recalc(); });
+  $("nbolts").addEventListener("input",e=>{ state.nbolts=parseFloat(e.target.value)||0; recalc(); });
+  $("female").addEventListener("change",e=>{ state.female=e.target.value; recalc(); });
+  $("engage").addEventListener("input",e=>{ state.engage=parseFloat(e.target.value)||0; recalc(); });
   $("trun").addEventListener("input",e=>{ state.trun=parseFloat(e.target.value)||0; recalc(); });
   $("ft").addEventListener("input",e=>{ state.ft=parseFloat(e.target.value)||0; recalc(); });
   $("fs").addEventListener("input",e=>{ state.fs=parseFloat(e.target.value)||0; recalc(); });
@@ -972,13 +1151,29 @@ function bindEvents(){
     $("copy-label").textContent=t().copied;
     setTimeout(()=>{ btn.classList.remove("copied"); $("copy-label").textContent=t().copy; }, 1400);
   });
+
+  $("share-btn").addEventListener("click",async()=>{
+    encodeState();                       // make sure the URL is current
+    const url=location.href;
+    try { await navigator.clipboard.writeText(url); }
+    catch(e){
+      const ta=document.createElement("textarea"); ta.value=url;
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+    }
+    const btn=$("share-btn"); btn.classList.add("copied");
+    $("share-label").textContent=t().shared;
+    setTimeout(()=>{ btn.classList.remove("copied"); $("share-label").textContent=t().share; }, 1400);
+  });
 }
 
 /* ============================================================ init */
+loadState();          // restore from ?query if present
 applyLabels();
 buildAll();
+syncInputs();         // push restored values into static inputs + toggles
 bindEvents();
-recalc();
+setMode(state.mode);  // sets body class + triggers recalc
 
 /* service worker */
 if("serviceWorker" in navigator){
