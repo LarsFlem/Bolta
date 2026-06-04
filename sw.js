@@ -1,5 +1,5 @@
 // Bolt Browser service worker — cache-first for offline use
-const CACHE = "bolter-v8";
+const CACHE = "bolter-v9";
 const ASSETS = [
   "./",
   "./index.html",

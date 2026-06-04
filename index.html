@@ -244,6 +244,11 @@ footer.brand{margin-top:30px;padding:22px 0 8px;border-top:1px solid var(--panel
 </div>
 
 <div class="field">
+  <label id="lbl-surface">Overflatebehandling</label>
+  <select id="surface"></select>
+</div>
+
+<div class="field">
   <label id="lbl-lube">Smøremiddel / gjengesikring</label>
   <select id="lube"></select>
 </div>
@@ -493,51 +498,84 @@ const CLASSES = {
   "A4-80":{Rm:800, Rp02:600, Sp:540, material:{no:"Rustfritt A4 (316/X5CrNiMo17-12-2)",en:"Stainless A4 (316/X5CrNiMo17-12-2)"}},
 };
 
+// Overflatebehandling på bolten. mu = tørr friksjon (uten ekstra smøring).
+// dry:true → utløser tørr-advarsel når ingen smøring er valgt.
+const SURFACES = {
+  "bare":       {K:0.20,mu:0.14,tol:0.18,dry:true,name:{no:"Ubehandlet / sortbrunert",en:"Bare / black oxide"},
+                 note:{no:"Bart stål, valseskall eller brunering. Tørr 0,15-0,25 (ISO 16047).",
+                       en:"Bare steel, mill-scale or black oxide. Dry 0.15-0.25 (ISO 16047)."}},
+  "zinc":       {K:0.20,mu:0.13,tol:0.15,dry:true,name:{no:"Sinkbelagt (elektrolytisk)",en:"Zinc plated (electroplated)"},
+                 note:{no:"Elektrobelegg + passivering. Tørr 0,18-0,22.",
+                       en:"Electroplated + passivation. Dry 0.18-0.22."}},
+  "hdg":        {K:0.25,mu:0.20,tol:0.20,dry:true,name:{no:"Varmgalvanisert (HDG)",en:"Hot-dip galvanized (HDG)"},
+                 note:{no:"Grov sink, høy/variabel friksjon tørr. Rens gjengene før montering. Tørr 0,20-0,35.",
+                       en:"Rough zinc, high/variable dry friction. Chase threads before assembly. Dry 0.20-0.35."}},
+  "zinc_flake": {K:0.12,mu:0.10,tol:0.08,name:{no:"Sinklamell (Dacromet/Geomet/Delta)",en:"Zinc flake (Dacromet/Geomet/Delta)"},
+                 note:{no:"Integrert glidetopplakk gir lav, jevn friksjon uten ekstra smøring. 0,09-0,14.",
+                       en:"Integral lubricating topcoat: low, consistent friction without added lube. 0.09-0.14."}},
+  "phosphate":  {K:0.17,mu:0.13,tol:0.12,dry:true,name:{no:"Fosfatert (mangan)",en:"Phosphate (manganese)"},
+                 note:{no:"Manganfosfat. Porøst lag, ofte med oljeinntrengning. Tørr 0,12-0,18.",
+                       en:"Manganese phosphate. Porous, usually oil-impregnated. Dry 0.12-0.18."}},
+  "cadmium":    {K:0.16,mu:0.10,tol:0.12,dry:true,name:{no:"Kadmiumbelagt",en:"Cadmium plated"},
+                 note:{no:"Lav friksjon (eldre luftfart; REACH-begrenset i EU).",
+                       en:"Low friction (legacy aerospace; REACH-restricted in EU)."}},
+  "stainless":  {K:0.25,mu:0.20,tol:0.20,dry:true,name:{no:"Rustfritt (A2/A4, passivert)",en:"Stainless (A2/A4, passivated)"},
+                 note:{no:"Sterkt fastgnagingsutsatt tørr — bruk alltid anti-seize. Tørr 0,20-0,45.",
+                       en:"Highly galling-prone dry — always use anti-seize. Dry 0.20-0.45."}},
+  "ptfe":       {K:0.13,mu:0.09,tol:0.07,name:{no:"PTFE / voksbelegg",en:"PTFE / wax coating"},
+                 note:{no:"Påført film. Svært konsistent hvis filmen ikke skades.",
+                       en:"Pre-applied film. Very consistent if undamaged."}},
+};
+
+// Smøremiddel / gjengesikring påført OVER overflaten. Når valgt, styrer
+// filmen friksjonen (overstyrer overflatens tørre μ). "none" = ingen påført.
 const LUBRICANTS = {
-  "dry":          {K:0.20,mu:0.14,dry:true,tol:0.18,name:{no:"Tørr / som mottatt",en:"Dry / as-received"},
-                   note:{no:"Område 0,15-0,25 (ISO 16047). Sortbrunert / valseskall opp til 0,30.",
-                         en:"Range 0.15-0.25 (ISO 16047). Black-oxide / mill-scale up to 0.30."}},
-  "light_oil":    {K:0.18,mu:0.11,name:{no:"Lett olje på gjengene",en:"Light oil on threads"},
+  "none":         {name:{no:"Ingen — bruk overflatens friksjon",en:"None — use surface friction"},
+                   note:{no:"Ingen ekstra smøring/sikring. Friksjonen settes av valgt overflate.",
+                         en:"No added lube/locker. Friction set by the chosen surface."}},
+  "light_oil":    {K:0.18,mu:0.11,tol:0.15,name:{no:"Lett olje på gjengene",en:"Light oil on threads"},
                    note:{no:"Mineralolje, gjenger + anleggsflate. Referansegrunnlag for de fleste kart.",
                          en:"Mineral oil, threads + bearing face. Baseline for most reference charts."}},
-  "cadmium":      {K:0.16,mu:0.10,name:{no:"Kadmiumbelagt",en:"Cadmium plated"},
-                   note:{no:"Lav friksjon (eldre luftfart; REACH-begrenset i EU).",
-                         en:"Low friction (legacy aerospace; REACH-restricted in EU)."}},
-  "zinc":         {K:0.20,mu:0.13,dry:true,tol:0.15,name:{no:"Sinkbelagt (elektrolytisk)",en:"Zinc plated"},
-                   note:{no:"Elektrobelegg + passivering. Variabel 0,18-0,22.",
-                         en:"Electroplated + passivation. Range 0.18-0.22."}},
-  "hdg":          {K:0.25,mu:0.20,dry:true,tol:0.20,name:{no:"Varmgalvanisert",en:"Hot-dip galvanized"},
-                   note:{no:"Grov sink; rens gjengene før montering. Område 0,20-0,35.",
-                         en:"Rough zinc; chase threads before assembly. Range 0.20-0.35."}},
-  "molykote":     {K:0.11,mu:0.10,mu_t:0.10,mu_h:0.05,tol:0.08,
-                   name:{no:"Molykote G-Rapid Plus (HDG-bolt)",en:"Molykote G-Rapid Plus (HDG bolt)"},
-                   note:{no:"MoS2-pasta på HDG-gjenger + plan hodeflate. Industristandard: μ_gjenge=0,10, μ_hode=0,05.",
-                         en:"MoS2 paste on HDG threads + plain head face. Industry standard: μ_thread=0.10, μ_head=0.05."}},
-  "cu_antiseize": {K:0.15,mu:0.10,name:{no:"Kobber anti-seize",en:"Copper anti-seize"},
+  "molykote":     {K:0.11,mu:0.10,mu_t:0.10,mu_h:0.05,tol:0.08,name:{no:"Molykote G-Rapid Plus",en:"Molykote G-Rapid Plus"},
+                   note:{no:"MoS2-pasta. Industristandard μ_gjenge=0,10, μ_hode=0,05. Filmen styrer friksjonen.",
+                         en:"MoS2 paste. Industry standard μ_thread=0.10, μ_head=0.05. Film governs friction."}},
+  "cu_antiseize": {K:0.15,mu:0.10,tol:0.12,name:{no:"Kobber anti-seize",en:"Copper anti-seize"},
                    note:{no:"Høy temperatur til 1100°C. Ikke på austenittisk rustfritt (galvanisk).",
                          en:"High temp to 1100°C. Not on austenitic stainless (galvanic)."}},
   "ni_antiseize": {K:0.13,mu:0.08,tol:0.08,name:{no:"Nikkel anti-seize",en:"Nickel anti-seize"},
                    note:{no:"Rustfritt-mot-rustfritt, motvirker fastsetting, høy temperatur.",
                          en:"Stainless-on-stainless, galling prevention, high temp."}},
-  "ptfe":         {K:0.13,mu:0.09,tol:0.07,name:{no:"PTFE / voksbelegg",en:"PTFE / wax coating"},
-                   note:{no:"Påført film. Svært konsistent hvis filmen ikke skades.",
-                         en:"Pre-applied film. Very consistent if film undamaged."}},
-  "loctite_222":  {K:0.18,mu:0.13,name:{no:"Loctite 222 (lilla)",en:"Loctite 222 (purple)"},
+  "loctite_222":  {K:0.18,mu:0.13,tol:0.12,name:{no:"Loctite 222 (lilla)",en:"Loctite 222 (purple)"},
                    note:{no:"Lav styrke. ≤M6, hyppig demontering. Friksjon ≈ lett olje.",
                          en:"Low strength. <=M6, frequent removal. Friction ~ light oil."}},
-  "loctite_243":  {K:0.18,mu:0.12,name:{no:"Loctite 243 (blå)",en:"Loctite 243 (blue)"},
-                   note:{no:"Middels styrke. Henkel: friksjon ≈ lett olje.",
-                         en:"Medium strength. Henkel: friction equivalent to light oil."}},
-  "loctite_263":  {K:0.17,mu:0.11,name:{no:"Loctite 263 (rød)",en:"Loctite 263 (red)"},
+  "loctite_243":  {K:0.18,mu:0.12,tol:0.12,name:{no:"Loctite 243 (blå)",en:"Loctite 243 (blue)"},
+                   note:{no:"Middels styrke. Henkel: friksjon ≈ lett olje. Vanlig på HDG i sammenstilling.",
+                         en:"Medium strength. Henkel: friction ~ light oil. Common on HDG in assemblies."}},
+  "loctite_263":  {K:0.17,mu:0.11,tol:0.12,name:{no:"Loctite 263 (rød)",en:"Loctite 263 (red)"},
                    note:{no:"Høy styrke. Pinneskruer & ≥M20.",
                          en:"High strength. Studs & >=M20."}},
-  "loctite_270":  {K:0.16,mu:0.10,name:{no:"Loctite 270 (grønn)",en:"Loctite 270 (green)"},
+  "loctite_270":  {K:0.16,mu:0.10,tol:0.12,name:{no:"Loctite 270 (grønn)",en:"Loctite 270 (green)"},
                    note:{no:"Permanent. Krever >250°C for demontering.",
                          en:"Permanent. Requires >250°C to dismantle."}},
-  "loctite_290":  {K:0.20,mu:0.14,name:{no:"Loctite 290 (gjennomtrengende)",en:"Loctite 290 (wicking)"},
-                   note:{no:"Påføres ETTER tiltrekking - bruk underlagsflatens μ, ikke denne.",
-                         en:"Applied AFTER tightening - use base surface μ, not this row."}},
+  "loctite_290":  {K:0.20,mu:0.14,tol:0.15,name:{no:"Loctite 290 (gjennomtrengende)",en:"Loctite 290 (wicking)"},
+                   note:{no:"Påføres ETTER tiltrekking - bruk overflatens μ, ikke denne.",
+                         en:"Applied AFTER tightening - use surface μ, not this row."}},
 };
+
+// Kombinerer valgt overflate + smøremiddel til ett effektivt friksjonssett.
+// Påført smøring/sikring styrer friksjonen; ellers gjelder overflatens tørre μ.
+function effLube(){
+  const s=SURFACES[state.surface]||SURFACES.bare;
+  const l=LUBRICANTS[state.lube]||LUBRICANTS.none;
+  if(state.lube!=="none" && l.K!==undefined){
+    return {K:l.K, mu:l.mu, mu_t:l.mu_t, mu_h:l.mu_h,
+            tol:(l.tol!==undefined?l.tol:0.10), dry:false, surface:s, lube:l,
+            name:{no:`${s.name.no} + ${l.name.no}`, en:`${s.name.en} + ${l.name.en}`}};
+  }
+  return {K:s.K, mu:s.mu, mu_t:s.mu_t, mu_h:s.mu_h,
+          tol:(s.tol!==undefined?s.tol:0.10), dry:!!s.dry, surface:s, lube:l,
+          name:s.name};
+}
 
 // Underhode-friksjonskoeffisient (rb/d-faktor i NASA K) per hodegeometri.
 // Forsenket: standardfaktor delt på sin(halvvinkel fra akse) pga. kileeffekt.
@@ -584,7 +622,7 @@ const TXT = {
 no:{
   title:"Boltutforsker", lang:"EN",
   mode_simple:"Enkel", mode_advanced:"Avansert",
-  lbl_size:"Bolt", lbl_class:"Fasthetsklasse", lbl_lube:"Smøremiddel / gjengesikring",
+  lbl_size:"Bolt", lbl_class:"Fasthetsklasse", lbl_surface:"Overflatebehandling", lbl_lube:"Smøremiddel / gjengesikring",
   lbl_preload:"Forspenningsmål", lbl_method:"K-metode",
   lbl_thread:"Gjengetype", thread_coarse:"Grov", thread_fine:"Fin",
   lbl_head:"Hodetype",
@@ -629,13 +667,13 @@ no:{
             t_clamp:"Klemmoment T=K·F·d",t_install:"Tiltrekkingsmoment (inkl. løpende)"},
   bycls_th:["Klasse","Klem (kN)","Moment"],
   footnote_simple:"Antar 75% av flytegrense (NASA RP-1228). Bruk Avansert for andre forspenninger.",
-  material:"Materiale", surface:"Overflate",
+  material:"Materiale", surface:"Overflate", eff_fric:"Effektiv friksjon",
   copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nTiltrekkingsmoment: ${t}\nKlemkraft: ${cf} kN  ·  K=${k}`,
 },
 en:{
   title:"Bolt Browser", lang:"NO",
   mode_simple:"Simple", mode_advanced:"Advanced",
-  lbl_size:"Bolt", lbl_class:"Property class", lbl_lube:"Lubricant / threadlocker",
+  lbl_size:"Bolt", lbl_class:"Property class", lbl_surface:"Surface treatment", lbl_lube:"Lubricant / threadlocker",
   lbl_preload:"Preload target", lbl_method:"K method",
   lbl_thread:"Thread type", thread_coarse:"Coarse", thread_fine:"Fine",
   lbl_head:"Head type",
@@ -680,7 +718,7 @@ en:{
             t_clamp:"Clamp torque T=K·F·d",t_install:"Install torque (incl. running)"},
   bycls_th:["Class","Clamp (kN)","Torque"],
   footnote_simple:"Assumes 75% of yield (NASA RP-1228). Switch to Advanced for other preload targets.",
-  material:"Material", surface:"Surface",
+  material:"Material", surface:"Surface", eff_fric:"Effective friction",
   copy_template:(s,c,l,t,k,cf)=>`${s} · ${c} · ${l}\nInstall torque: ${t}\nClamp force: ${cf} kN  ·  K=${k}`,
 },
 };
@@ -762,6 +800,7 @@ const state={
   mode:"simple",
   size:"M8",
   cls:"8.8",
+  surface:"hdg",
   lube:"molykote",
   preload:"Rp_75",
   method:"nasa",
@@ -820,8 +859,12 @@ function buildAll(){
   $("size-select").value=state.size;
   populateSelect($("class"), Object.entries(CLASSES), (id,c)=>`${id} — Rm ${c.Rm}, Rp 0,2 ${c.Rp02} MPa`);
   $("class").value=state.cls;
+  populateSelect($("surface"), Object.entries(SURFACES),
+                 (id,s)=>`${s.name[state.lang]}  ·  K=${s.K.toFixed(2)}  μ=${s.mu.toFixed(2)}`);
+  $("surface").value=state.surface;
   populateSelect($("lube"), Object.entries(LUBRICANTS),
-                 (id,l)=>`${l.name[state.lang]}  ·  K=${l.K.toFixed(2)}  ${lubeKDisplay(l)}`);
+                 (id,l)=> l.K===undefined ? l.name[state.lang]
+                        : `${l.name[state.lang]}  ·  K=${l.K.toFixed(2)}  ${lubeKDisplay(l)}`);
   $("lube").value=state.lube;
   populateSelect($("preload"), Object.entries(PRELOAD_PRESETS), (id,p)=>p.label[state.lang]);
   $("preload").value=state.preload;
@@ -846,6 +889,7 @@ function applyLabels(){
   $("lang-toggle").textContent=L.lang;
   $("lbl-size").textContent=L.lbl_size;
   $("lbl-class").textContent=L.lbl_class;
+  $("lbl-surface").textContent=L.lbl_surface;
   $("lbl-lube").textContent=L.lbl_lube;
   $("lbl-preload").textContent=L.lbl_preload;
   $("lbl-method").textContent=L.lbl_method;
@@ -886,7 +930,7 @@ function applyLabels(){
 function recalc(){
   const sz=effSize(state.size, state.thread);
   const cls=CLASSES[state.cls];
-  const lube=LUBRICANTS[state.lube];
+  const lube=effLube();
 
   let basis, frac;
   if(state.mode==="simple"){
@@ -947,7 +991,9 @@ function recalc(){
     `<b>${t().material}</b> · ${state.cls} — ${cls.material[state.lang]}<br>`+
     `Rm ${cls.Rm} MPa · Rp 0,2 ${cls.Rp02} MPa · Sp ${cls.Sp} MPa`;
   $("lube-line").innerHTML=
-    `<b>${t().surface}</b> · ${lube.name[state.lang]}<br>${lube.note[state.lang]}`;
+    `<b>${t().lbl_surface}</b> · ${lube.surface.name[state.lang]}<br>${lube.surface.note[state.lang]}`+
+    `<br><b>${t().lbl_lube}</b> · ${lube.lube.name[state.lang]}<br>${lube.lube.note[state.lang]}`+
+    `<br><span style="color:var(--muted)">${t().eff_fric}: ${lubeKDisplay(lube)} · K≈${lube.K.toFixed(2)}</span>`;
 
   // tables (only build if advanced)
   if(state.mode==="advanced"){
@@ -1057,7 +1103,7 @@ function buildEngage(sz){
 }
 
 /* ---- shareable URL: encode/restore state ---- */
-const URL_KEYS=["lang","mode","size","cls","lube","preload","method","thread",
+const URL_KEYS=["lang","mode","size","cls","surface","lube","preload","method","thread",
   "head","unit","piston","ltf","grip","nbolts","female","engage","trun","ft","fs"];
 const URL_NUM=new Set(["piston","ltf","grip","nbolts","engage","trun","ft","fs"]);
 function encodeState(){
@@ -1149,6 +1195,7 @@ function bindEvents(){
   $("size-select").addEventListener("change",e=>{ state.size=e.target.value; buildSizePills(); buildThreadSelect(); recalc(); });
   $("size-more").addEventListener("click",()=>{ state.pillsExpanded=!state.pillsExpanded; buildSizePills(); });
   $("class").addEventListener("change",e=>{ state.cls=e.target.value; recalc(); });
+  $("surface").addEventListener("change",e=>{ state.surface=e.target.value; recalc(); });
   $("lube").addEventListener("change",e=>{ state.lube=e.target.value; recalc(); });
   $("preload").addEventListener("change",e=>{ state.preload=e.target.value; recalc(); });
   $("method").addEventListener("change",e=>{ state.method=e.target.value; recalc(); });
@@ -1171,7 +1218,7 @@ function bindEvents(){
   $("fs").addEventListener("input",e=>{ state.fs=parseFloat(e.target.value)||0; recalc(); });
 
   $("copy-btn").addEventListener("click",async()=>{
-    const sz=effSize(state.size, state.thread), cls=CLASSES[state.cls], lube=LUBRICANTS[state.lube];
+    const sz=effSize(state.size, state.thread), cls=CLASSES[state.cls], lube=effLube();
     let basis,frac;
     if(state.mode==="simple"){basis="Rp02";frac=0.75;}
     else{const p=PRELOAD_PRESETS[state.preload];basis=p.basis;frac=p.frac;}
