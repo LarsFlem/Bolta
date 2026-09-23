@@ -1,5 +1,5 @@
-// Bolt Browser service worker — cache-first for offline use
-const CACHE = "bolter-v10";
+// Bolt Browser service worker — network-first for the page, cache-first for static assets
+const CACHE = "bolter-v11";
 const ASSETS = [
   "./",
   "./index.html",
@@ -11,7 +11,11 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  // cache: "reload" bypasses the HTTP cache (GitHub Pages sends max-age=600),
+  // so a new cache version never gets filled with a stale index.html
+  e.waitUntil(caches.open(CACHE).then(c =>
+    c.addAll(ASSETS.map(url => new Request(url, { cache: "reload" })))
+  ));
   self.skipWaiting();
 });
 
@@ -24,16 +28,31 @@ self.addEventListener("activate", e => {
   self.clients.claim();
 });
 
+function putInCache(req, resp) {
+  if (resp && resp.ok && new URL(req.url).origin === location.origin) {
+    const clone = resp.clone();
+    caches.open(CACHE).then(c => c.put(req, clone));
+  }
+  return resp;
+}
+
 self.addEventListener("fetch", e => {
-  if (e.request.method !== "GET") return;
+  const req = e.request;
+  if (req.method !== "GET") return;
+
+  // The page itself: always try the network first so updates show up at once;
+  // fall back to the cached copy when offline.
+  if (req.mode === "navigate") {
+    e.respondWith(
+      fetch(req, { cache: "no-cache" })
+        .then(resp => putInCache(req, resp))
+        .catch(() => caches.match(req).then(hit => hit || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  // Static assets (icons, logos, manifest): cache-first
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
-      // opportunistic cache of same-origin GETs
-      if (resp && resp.ok && new URL(e.request.url).origin === location.origin) {
-        const clone = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-      }
-      return resp;
-    }).catch(() => caches.match("./index.html")))
+    caches.match(req).then(hit => hit || fetch(req).then(resp => putInCache(req, resp)))
   );
 });
